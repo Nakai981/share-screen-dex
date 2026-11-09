@@ -72,6 +72,18 @@ class ExternalDisplayCoordinator(
                 }
                 result.success(null)
             }
+            "publishPointer" -> {
+                if (!external) asMap(call.arguments)?.let { pointer ->
+                    val next = (state ?: emptyMap()).toMutableMap()
+                    for (key in listOf("cursorX", "cursorY")) {
+                        val value = (pointer[key] as? Number)?.toDouble()
+                        if (value != null && value.isFinite()) next[key] = value
+                    }
+                    state = next
+                    secondary?.invokeMethod("pointerChanged", pointer)
+                }
+                result.success(null)
+            }
             "dispatchAction" -> {
                 if (external) asMap(call.arguments)?.let { primary.invokeMethod("action", it) }
                 result.success(null)
@@ -154,6 +166,7 @@ class ExternalDisplayCoordinator(
         val display = displays().firstOrNull()
         return mapOf(
             "nativeAvailable" to true,
+            "supportsPointerUpdates" to true,
             "connected" to (display != null),
             "presenting" to (presentation?.isShowing == true),
             "name" to display?.name,

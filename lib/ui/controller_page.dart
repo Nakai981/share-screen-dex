@@ -714,6 +714,19 @@ class _ControllerPageState extends State<ControllerPage> {
               const SizedBox(height: 12),
               KeyboardPreferences(workspace: workspace),
               const SizedBox(height: 16),
+              const Text('Kích thước con trỏ', style: TextStyle(fontSize: 12)),
+              Slider(
+                key: const ValueKey('cursor-scale'),
+                value: workspace.cursorScale,
+                min: .7,
+                max: 1.5,
+                divisions: 8,
+                onChanged: (value) {
+                  workspace.dispatch({'type': 'cursorScale', 'value': value});
+                  updateSheet(() {});
+                },
+              ),
+              const SizedBox(height: 16),
               Text(
                 'Viền an toàn dưới màn hình: ${workspace.safeInset.round()}',
                 style: const TextStyle(fontSize: 12),
@@ -763,8 +776,8 @@ class _ControllerPageState extends State<ControllerPage> {
               const SizedBox(height: 12),
               Text(
                 widget.session.status.nativeAvailable
-                    ? 'SideScreen 0.4 · Màn hình có dây'
-                    : 'SideScreen 0.4 · Chế độ xem thử',
+                    ? 'SideScreen 0.5 · Màn hình có dây'
+                    : 'SideScreen 0.5 · Chế độ xem thử',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 10, color: AppColors.muted),
               ),

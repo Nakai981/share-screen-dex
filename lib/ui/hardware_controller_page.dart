@@ -9,6 +9,7 @@ import 'browser/browser_window.dart';
 import 'desktop.dart';
 import 'keyboard_preferences.dart';
 import 'theme.dart';
+import 'cute_cursor.dart';
 
 /// The iPhone keeps keyboard focus. Its mouse/AssistiveTouch events are mapped
 /// onto the external workspace rather than relying on an interactive scene.
@@ -441,15 +442,13 @@ class _RemoteDesktopPainter extends CustomPainter {
           ][i],
       );
     }
-    canvas.drawCircle(workspace.cursor, 12, Paint()..color = AppColors.blue);
-    canvas.drawCircle(
-      workspace.cursor,
-      13,
-      Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4,
+    canvas.save();
+    canvas.translate(workspace.cursor.dx, workspace.cursor.dy);
+    const CuteCursorPainter().paint(
+      canvas,
+      cuteCursorSize * workspace.cursorScale,
     );
+    canvas.restore();
     canvas.restore();
   }
 

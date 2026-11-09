@@ -28,6 +28,7 @@ final class ExternalDisplayCoordinator {
   private var secondary: FlutterMethodChannel?
   private var externalEngine: FlutterEngine?
   private weak var externalScene: UIWindowScene?
+  private weak var desktopOverlay: ExternalDesktopOverlay?
   private var state: [String: Any]?
   private var accessoryRegistration: AnyObject?
   private weak var accessoryOwner: UIViewController?
@@ -90,12 +91,19 @@ final class ExternalDisplayCoordinator {
   }
 
   func disconnect() {
+    desktopOverlay = nil
     secondary?.setMethodCallHandler(nil)
     secondary = nil
     externalEngine?.destroyContext()
     externalEngine = nil
     externalScene = nil
     UIApplication.shared.isIdleTimerDisabled = false
+    notifyStatus()
+  }
+
+  func attachOverlay(_ overlay: ExternalDesktopOverlay) {
+    desktopOverlay = overlay
+    overlay.apply(state ?? [:])
     notifyStatus()
   }
 
@@ -111,7 +119,21 @@ final class ExternalDisplayCoordinator {
       case "publishState":
         if !external, let next = call.arguments as? [String: Any] {
           self.state = next
+          self.desktopOverlay?.apply(next)
           self.secondary?.invokeMethod("stateChanged", arguments: next)
+        }
+        result(nil)
+      case "publishPointer":
+        if !external, let pointer = call.arguments as? [String: Any] {
+          var next = self.state ?? [:]
+          for key in ["cursorX", "cursorY"] {
+            if let number = pointer[key] as? NSNumber, number.doubleValue.isFinite {
+              next[key] = number
+            }
+          }
+          self.state = next
+          self.desktopOverlay?.applyPointer(pointer)
+          self.secondary?.invokeMethod("pointerChanged", arguments: pointer)
         }
         result(nil)
       case "saveState":
@@ -137,6 +159,8 @@ final class ExternalDisplayCoordinator {
     let screen = externalScene?.screen ?? UIScreen.screens.first(where: { $0 !== UIScreen.main })
     var value: [String: Any] = [
       "nativeAvailable": true,
+      "nativeChrome": externalEngine != nil && desktopOverlay != nil,
+      "supportsPointerUpdates": true,
       "connected": screen != nil,
       "presenting": externalEngine != nil,
     ]
@@ -148,5 +172,9 @@ final class ExternalDisplayCoordinator {
     return value
   }
 
-  func notifyStatus() { primary?.invokeMethod("displayChanged", arguments: status()) }
+  func notifyStatus() {
+    let current = status()
+    primary?.invokeMethod("displayChanged", arguments: current)
+    secondary?.invokeMethod("displayChanged", arguments: current)
+  }
 }

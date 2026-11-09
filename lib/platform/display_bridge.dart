@@ -5,6 +5,8 @@ class DisplayStatus {
     this.nativeAvailable = false,
     this.connected = false,
     this.presenting = false,
+    this.nativeChrome = false,
+    this.supportsPointerUpdates = false,
     this.name,
     this.width,
     this.height,
@@ -14,6 +16,8 @@ class DisplayStatus {
     nativeAvailable: value['nativeAvailable'] == true,
     connected: value['connected'] == true,
     presenting: value['presenting'] == true,
+    nativeChrome: value['nativeChrome'] == true,
+    supportsPointerUpdates: value['supportsPointerUpdates'] == true,
     name: value['name'] as String?,
     width: (value['width'] as num?)?.toInt(),
     height: (value['height'] as num?)?.toInt(),
@@ -22,6 +26,8 @@ class DisplayStatus {
   final bool nativeAvailable;
   final bool connected;
   final bool presenting;
+  final bool nativeChrome;
+  final bool supportsPointerUpdates;
   final String? name;
   final int? width;
   final int? height;
@@ -33,6 +39,7 @@ class DisplayBridge {
   final MethodChannel _channel = const MethodChannel(channelName);
   void Function(DisplayStatus)? onStatus;
   void Function(Map<Object?, Object?>)? onSnapshot;
+  void Function(Map<Object?, Object?>)? onPointer;
   void Function(Map<String, Object?>)? onAction;
   bool _available = false;
   Future<Map<Object?, Object?>?> initialize() async {
@@ -44,6 +51,8 @@ class DisplayBridge {
           onStatus?.call(DisplayStatus.fromMap(raw));
         case 'stateChanged':
           onSnapshot?.call(raw);
+        case 'pointerChanged':
+          onPointer?.call(raw);
         case 'action':
           onAction?.call(Map<String, Object?>.from(raw));
       }
@@ -67,6 +76,8 @@ class DisplayBridge {
 
   Future<void> publish(Map<String, Object?> state) =>
       _invoke('publishState', state);
+  Future<void> publishPointer(Map<String, Object?> pointer) =>
+      _invoke('publishPointer', pointer);
   Future<void> save(Map<String, Object?> state) => _invoke('saveState', state);
   Future<void> sendAction(Map<String, Object?> action) =>
       _invoke('dispatchAction', action);
@@ -89,6 +100,7 @@ class DisplayBridge {
     _channel.setMethodCallHandler(null);
     onStatus = null;
     onSnapshot = null;
+    onPointer = null;
     onAction = null;
   }
 }

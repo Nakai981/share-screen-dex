@@ -24,6 +24,7 @@ class AppSession extends ChangeNotifier with WidgetsBindingObserver {
   bool ready = false;
   bool _disposed = false;
   int _savedRevision = -1;
+  int _publishedSceneRevision = -1;
   Timer? _publishTimer;
   Timer? _saveTimer;
   Future<void> start() async {
@@ -46,6 +47,9 @@ class AppSession extends ChangeNotifier with WidgetsBindingObserver {
     };
     bridge.onSnapshot = (state) {
       if (!_disposed && external) workspace.restore(state);
+    };
+    bridge.onPointer = (pointer) {
+      if (!_disposed && external) workspace.applyPointer(pointer);
     };
     bridge.onAction = (action) {
       if (!_disposed && !external) workspace.dispatch(action);
@@ -74,7 +78,18 @@ class AppSession extends ChangeNotifier with WidgetsBindingObserver {
   void _workspaceChanged() {
     _publishTimer ??= Timer(const Duration(milliseconds: 16), () {
       _publishTimer = null;
-      unawaited(bridge.publish(workspace.snapshot()));
+      if (status.supportsPointerUpdates &&
+          _publishedSceneRevision == workspace.sceneRevision) {
+        unawaited(
+          bridge.publishPointer({
+            'cursorX': workspace.cursor.dx,
+            'cursorY': workspace.cursor.dy,
+          }),
+        );
+      } else {
+        _publishedSceneRevision = workspace.sceneRevision;
+        unawaited(bridge.publish(workspace.snapshot()));
+      }
     });
     if (_savedRevision != workspace.revision) {
       _savedRevision = workspace.revision;
@@ -139,14 +154,20 @@ class _SideScreenAppState extends State<SideScreenApp> {
     debugShowCheckedModeBanner: false,
     theme: buildTheme(),
     home: widget.external
-        ? MediaQuery(
-            data: MediaQuery.of(context).copyWith(
-              padding: EdgeInsets.zero,
-              viewPadding: EdgeInsets.zero,
-              viewInsets: EdgeInsets.zero,
-            ),
-            child: Scaffold(
-              body: DesktopViewport(workspace: session.workspace),
+        ? ListenableBuilder(
+            listenable: session,
+            builder: (context, _) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                padding: EdgeInsets.zero,
+                viewPadding: EdgeInsets.zero,
+                viewInsets: EdgeInsets.zero,
+              ),
+              child: Scaffold(
+                body: DesktopViewport(
+                  workspace: session.workspace,
+                  showChrome: !session.status.nativeChrome,
+                ),
+              ),
             ),
           )
         : ControllerPage(session: session),

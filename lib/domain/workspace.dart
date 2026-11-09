@@ -120,6 +120,10 @@ class WorkspaceController extends ChangeNotifier {
   Offset cursor = const Offset(714, 400);
   int wallpaper = 0;
   int revision = 0;
+  int sceneRevision = 0;
+  final sceneChanges = ChangeNotifier();
+  final pointerChanges = ChangeNotifier();
+  double cursorScale = 1;
   int layoutEpoch = 0;
   bool autoTile = true;
   double safeInset = desktopSafeInset;
@@ -143,6 +147,7 @@ class WorkspaceController extends ChangeNotifier {
     final type = action['type'];
     final app = _app(action['app']);
     var persistent = true;
+    var sceneChanged = true;
     switch (type) {
       case 'displayViewport':
         final width = _number(action['width']);
@@ -183,6 +188,8 @@ class WorkspaceController extends ChangeNotifier {
             .firstOrNull;
         if (language == null) return;
         keyboardLanguage = language;
+      case 'cursorScale':
+        cursorScale = _number(action['value'], 1).clamp(.7, 1.5);
       case 'open':
         if (app == null) return;
         _open(app);
@@ -270,6 +277,7 @@ class WorkspaceController extends ChangeNotifier {
           }
         } else {
           persistent = false;
+          sceneChanged = false;
         }
       case 'pointerDown':
         _dragging = null;
@@ -292,11 +300,13 @@ class WorkspaceController extends ChangeNotifier {
         _dragging = null;
         _resizing = false;
         persistent = false;
+        sceneChanged = false;
       case 'click':
         _click();
       case 'centerPointer':
         cursor = canvasSize.center(Offset.zero);
         persistent = false;
+        sceneChanged = false;
       case 'reset':
         _windows.clear();
         _open(DeskApp.guide);
@@ -307,7 +317,32 @@ class WorkspaceController extends ChangeNotifier {
         return;
     }
     if (persistent) revision++;
+    _notify(scene: sceneChanged);
+  }
+
+  void _notify({bool scene = true}) {
+    if (scene) {
+      sceneRevision++;
+      sceneChanges.notifyListeners();
+    }
+    pointerChanges.notifyListeners();
     notifyListeners();
+  }
+
+  /// Incremental native-bridge updates never rebuild the window tree.
+  void applyPointer(Map<Object?, Object?> value) {
+    cursor = Offset(
+      _number(value['cursorX'], cursor.dx).clamp(0, canvasSize.width - 1),
+      _number(value['cursorY'], cursor.dy).clamp(0, 899),
+    );
+    _notify(scene: false);
+  }
+
+  @override
+  void dispose() {
+    sceneChanges.dispose();
+    pointerChanges.dispose();
+    super.dispose();
   }
 
   void _open(DeskApp app, {bool launch = true}) {
@@ -317,7 +352,10 @@ class WorkspaceController extends ChangeNotifier {
       final wasMinimized = existing.minimized;
       existing.minimized = false;
       _focus(app);
-      if (wasMinimized && autoTile) _tileVisible();
+      if (launch || wasMinimized) {
+        autoTile = true;
+        _tileVisible();
+      }
       return;
     }
     _windows.add(
@@ -331,7 +369,8 @@ class WorkspaceController extends ChangeNotifier {
       ),
     );
     _fitWindows();
-    if (autoTile) _tileVisible();
+    autoTile = true;
+    _tileVisible();
   }
 
   void _fitWindows() {
@@ -499,7 +538,8 @@ class WorkspaceController extends ChangeNotifier {
 
   Map<String, Object?> snapshot({bool forStorage = false}) => {
     'schemaVersion': 1,
-    'layoutVersion': 2,
+    'layoutVersion': 3,
+    'cursorScale': cursorScale,
     'layoutEpoch': layoutEpoch,
     'autoTile': autoTile,
     'safeInset': safeInset,
@@ -524,6 +564,7 @@ class WorkspaceController extends ChangeNotifier {
   bool restore(Map<Object?, Object?> json) {
     if (json['schemaVersion'] != 1 || json['windows'] is! List) return false;
     fullScreen = json['fullScreen'] != false;
+    cursorScale = _number(json['cursorScale'], 1).clamp(.7, 1.5);
     autoTile = json['autoTile'] != false;
     safeInset = _number(json['safeInset'], desktopSafeInset).clamp(16, 96);
     layoutEpoch = _number(json['layoutEpoch']).toInt();
@@ -605,9 +646,12 @@ class WorkspaceController extends ChangeNotifier {
         ? Map<String, Object?>.from(json['browserCommand'] as Map)
         : null;
     browserCommandSerial = _number(browserCommand?['serial']).toInt();
-    if (json['layoutVersion'] != 2 && autoTile) _tileVisible();
+    if (json['layoutVersion'] != 3) {
+      autoTile = true;
+      _tileVisible();
+    }
     revision++;
-    notifyListeners();
+    _notify();
     return true;
   }
 

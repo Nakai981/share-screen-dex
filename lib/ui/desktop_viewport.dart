@@ -10,9 +10,11 @@ class DesktopViewport extends StatefulWidget {
     super.key,
     required this.workspace,
     this.reportSize = true,
+    this.showChrome = true,
   });
   final WorkspaceController workspace;
   final bool reportSize;
+  final bool showChrome;
   @override
   State<DesktopViewport> createState() => _DesktopViewportState();
 }
@@ -38,7 +40,10 @@ class _DesktopViewportState extends State<DesktopViewport> {
           }
         });
       }
-      return DesktopView(workspace: widget.workspace);
+      return DesktopView(
+        workspace: widget.workspace,
+        showChrome: widget.showChrome,
+      );
     },
   );
 }

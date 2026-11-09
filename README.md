@@ -2,15 +2,18 @@
 
 Ứng dụng Flutter cho Android/iPhone: khi mở app và có màn hình ngoài được hệ điều hành cấp qua USB-C/HDMI, app mở một không gian làm việc riêng trên màn hình đó. Điện thoại là bàn điều khiển.
 
-## Bản 0.4 đã có
+## Bản 0.5 đã có
 
 - Hai giao diện độc lập: điều khiển trên điện thoại và desktop trên màn hình ngoài.
+- iOS dùng taskbar và con trỏ native ở cấp UIWindow, phía trên cây Flutter/WKWebView. Chúng không phụ thuộc thứ tự ghép lớp của platform view. Cần build lại cả mã Swift và Dart của bản 0.5.
+- Con trỏ nhỏ 16×20, màu mint có mặt cười; có chỉnh kích thước trong Tùy chỉnh, lưu cùng phiên.
+- Di chuột chỉ gửi tọa độ qua bridge mới; không gửi lại toàn bộ ghi chú/cửa sổ hay dựng lại nội dung các app trong từng lần di chuyển. Bridge cũ tiếp tục dùng snapshot đầy đủ.
 - Tự kiểm tra màn hình lúc mở app và theo dõi cắm/rút trong lúc chạy.
 - Ba ứng dụng trong desktop: **Ghi chú**, **Trình duyệt** và **Bắt đầu**.
 - Kéo, đổi kích thước, thu nhỏ, phóng to, đóng và mở lại cửa sổ.
 - Chuyển động spring lấy cảm hứng macOS: mở cửa sổ nhẹ từ gần kích thước thật, thu nhỏ/khôi phục về Dock, xếp cạnh nhau và phóng to bằng transform; giữ nội dung khi thu nhỏ. Tôn trọng cài đặt giảm chuyển động của hệ thống.
 - Taskbar trải ngang, nằm cao hơn mép dưới 32 điểm logic mặc định, luôn trên các cửa sổ. Có phóng lớn biểu tượng và nhãn khi hover; nút xếp cửa sổ ở bên phải.
-- Mặc định xếp cửa sổ mới cạnh nhau; phiên cũ được bố trí lại để tránh chồng cửa sổ. Khi kéo/resize thủ công, chuyển sang bố cục tự do; bấm Sắp xếp cửa sổ để quay lại.
+- Mỗi lần mở/kích hoạt app từ taskbar, các cửa sổ xếp lại cạnh nhau kể cả trước đó đã kéo/resize thủ công. Nhập địa chỉ trong trình duyệt đang mở giữ nguyên chế độ phóng to. Phiên 0.4 cũ được bố trí lại một lần khi nâng cấp.
 - Nút **Khôi phục desktop** trên điện thoại nâng taskbar vào sâu hơn và xếp lại cửa sổ. Cài đặt có **Viền an toàn dưới màn hình** từ 16–96 điểm logic cho màn hình/cáp bị cắt mép.
 - Chế độ **Chuột & bàn phím** trên điện thoại: vùng điều khiển tuyệt đối ánh xạ sang desktop, nhận hover/click/drag/cuộn khi hệ điều hành gửi sự kiện; nhập ghi chú và địa chỉ bằng bàn phím vật lý, có phím tắt.
 - Trình duyệt có thanh địa chỉ/tìm kiếm, lùi/tiến, tải lại, trang chủ và trang HTML thử tương tác không cần mạng. Android/iOS dùng WebView; bản web dùng iframe.
@@ -56,7 +59,7 @@ flutter build apk --debug
 
 APK cài thử: `build/app/outputs/flutter-apk/app-debug.apk`. Đây là bản debug ký bằng khóa phát triển; cấu hình khóa phát hành riêng trước khi đưa lên cửa hàng.
 
-Bản ARM64 0.4: `artifacts/SideScreen-0.4.0-arm64.apk` (tạo cục bộ khi build, không lưu APK trong Git).
+Bản ARM64 0.5: `artifacts/SideScreen-0.5.0-arm64.apk` (tạo cục bộ khi build, không lưu APK trong Git).
 
 Trên Windows, có thể dùng `scripts\build_android.cmd debug` để tự tìm Java đi kèm Android Studio. Bỏ `debug` để build APK release dành cho Android ARM64; bản release này vẫn dùng khóa phát triển của dự án.
 
@@ -128,6 +131,7 @@ Flutter engine phụ không sửa một bản dữ liệu riêng: thao tác từ
 | `lib/ui/keyboard_preferences.dart` | Ngôn ngữ nhập và đồng bộ văn bản giữ trạng thái IME |
 | `lib/ui/hardware_controller_page.dart` | Điều khiển bằng chuột/AssistiveTouch, bàn phím vật lý và phím tắt trên điện thoại |
 | `lib/ui/desktop_motion.dart` | Spring có damping cho mở/đóng và bố trí cửa sổ |
+| `lib/ui/cute_cursor.dart` | Con trỏ vector nhỏ và tùy chỉnh kích thước |
 | `lib/ui/browser/` | WebView native, iframe web, điều khiển trên điện thoại và HTML demo |
 | `android/app/src/main/kotlin/dev/sidescreen/side_screen/ExternalDisplayCoordinator.kt` | `DisplayManager`, `Presentation`, tạo/hủy engine phụ, SharedPreferences |
 | `ios/Runner/AppDelegate.swift` | Bridge, scene accessory, engine phụ, UserDefaults |
@@ -145,6 +149,7 @@ Mỗi engine có cùng tên channel trên binary messenger riêng.
 | Chính → native | `saveState` | Lưu snapshot JSON trên thiết bị |
 | Phụ → native → chính | `dispatchAction` / `action` | Thao tác `{type, ...}` |
 | Native → chính | `displayChanged` | Kết nối, trạng thái hiển thị, tên và kích thước màn hình |
+| Chính → native → phụ | `publishPointer` / `pointerChanged` | Chỉ `{cursorX, cursorY}`, khi host báo `supportsPointerUpdates` |
 
 Chỉ cập nhật có thay đổi nội dung/bố cục mới đặt lịch lưu; di con trỏ thông thường không ghi đĩa liên tục. Khi app rời foreground, app yêu cầu lưu ngay. Force-kill trong khoảng lưu 500 ms vẫn có thể mất thao tác cuối.
 
@@ -170,7 +175,7 @@ flutter build web --release --no-web-resources-cdn
 flutter build apk --debug
 ```
 
-44 kiểm thử bao gồm giới hạn di chuyển/resize, kéo qua touchpad, hit testing của dock/nút cửa sổ, chuyển động đóng/mở/phóng to, không dựng lại nội dung trong từng frame animation, hover chuột/con trỏ ảo, giảm chuyển động, giữ ô địa chỉ khi thu nhỏ, tìm Google, định tuyến liên kết YouTube và kiểm tra địa chỉ, không lưu lệnh nhập chữ vào trang, khôi phục snapshot cũ, mô hình engine phụ, giữ vùng ghép dấu tiếng Việt, gợi ý ngôn ngữ, phủ kín màn hình 1920×1080/2560×1600, bố cục ultrawide và bố cục điện thoại 320/390/1024/1440 px.
+50 kiểm thử bao gồm giới hạn di chuyển/resize, kéo qua touchpad, hit testing của dock/nút cửa sổ, chuyển động đóng/mở/phóng to, không dựng lại nội dung trong từng frame animation, hover chuột/con trỏ ảo, giảm chuyển động, giữ ô địa chỉ khi thu nhỏ, tìm Google, định tuyến liên kết YouTube và kiểm tra địa chỉ, không lưu lệnh nhập chữ vào trang, khôi phục snapshot cũ, mô hình engine phụ, giữ vùng ghép dấu tiếng Việt, gợi ý ngôn ngữ, phủ kín màn hình 1920×1080/2560×1600, bố cục ultrawide và bố cục điện thoại 320/390/1024/1440 px.
 
 Kiểm tra vòng đời native trên một emulator dùng riêng cho kiểm thử, sau khi build APK debug:
 
@@ -189,4 +194,5 @@ Tài liệu nền tảng:
 - [Apple external-display scenes](https://developer.apple.com/documentation/uikit/presenting-content-on-a-connected-display)
 - [Apple overscan compensation](https://developer.apple.com/documentation/uikit/uiscreen/overscancompensation-swift.enum/none)
 - [Flutter IME language hints (Android)](https://api.flutter.dev/flutter/material/TextField/hintLocales.html)
+- [Flutter custom scene lifecycle forwarding](https://docs.flutter.dev/add-to-app/ios/add-flutter-screen#if-you-cant-subclass-flutterscenedelegate)
 - [YouTube embedded player](https://developers.google.com/youtube/player_parameters)

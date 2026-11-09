@@ -12,19 +12,22 @@ import 'browser/browser_window.dart';
 import 'keyboard_preferences.dart';
 import 'desktop_viewport.dart';
 import 'fullscreen.dart';
+import 'cute_cursor.dart';
 
 class DesktopView extends StatelessWidget {
   const DesktopView({
     super.key,
     required this.workspace,
     this.interactive = true,
+    this.showChrome = true,
   });
   final WorkspaceController workspace;
   final bool interactive;
+  final bool showChrome;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: workspace,
+    listenable: workspace.sceneChanges,
     builder: (context, _) => ColoredBox(
       color: wallpaperColors[workspace.wallpaper].$1,
       child: SizedBox.expand(
@@ -90,22 +93,34 @@ class DesktopView extends StatelessWidget {
                           ),
                         ),
                       ),
-                    Positioned.fromRect(
-                      rect: workspace.dockRect,
-                      child: PointerInterceptor(
-                        child: DesktopDock(workspace: workspace),
-                      ),
-                    ),
-                    Positioned(
-                      left: workspace.cursor.dx,
-                      top: workspace.cursor.dy,
-                      child: const IgnorePointer(
-                        child: CustomPaint(
-                          size: Size(26, 33),
-                          painter: _CursorPainter(),
+                    if (showChrome)
+                      Positioned.fromRect(
+                        rect: workspace.dockRect,
+                        child: PointerInterceptor(
+                          child: ListenableBuilder(
+                            listenable: workspace.pointerChanges,
+                            builder: (context, _) =>
+                                DesktopDock(workspace: workspace),
+                          ),
                         ),
                       ),
-                    ),
+                    if (showChrome)
+                      ListenableBuilder(
+                        listenable: workspace.pointerChanges,
+                        builder: (context, _) => Positioned(
+                          key: const ValueKey('desktop-cursor'),
+                          left: workspace.cursor.dx,
+                          top: workspace.cursor.dy,
+                          child: IgnorePointer(
+                            child: RepaintBoundary(
+                              child: CustomPaint(
+                                size: cuteCursorSize * workspace.cursorScale,
+                                painter: const CuteCursorPainter(),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -615,34 +630,6 @@ class _NotesContentState extends State<_NotesContent> {
       ),
     ],
   );
-}
-
-class _CursorPainter extends CustomPainter {
-  const _CursorPainter();
-  @override
-  void paint(Canvas canvas, Size size) {
-    final path = Path()
-      ..moveTo(2, 2)
-      ..lineTo(2, 26)
-      ..lineTo(8, 20)
-      ..lineTo(14, 31)
-      ..lineTo(19, 28)
-      ..lineTo(13, 18)
-      ..lineTo(23, 18)
-      ..close();
-    canvas.drawShadow(path, Colors.black, 3, true);
-    canvas.drawPath(path, Paint()..color = Colors.white);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = AppColors.ink
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_CursorPainter oldDelegate) => false;
 }
 
 class DesktopPreviewPage extends StatefulWidget {
