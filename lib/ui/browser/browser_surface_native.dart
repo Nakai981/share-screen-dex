@@ -53,6 +53,8 @@ class _NativeSurfaceState extends State<_NativeSurface> {
   String? loadedUrl;
   int progress = 0;
   bool pageLoading = false;
+  int? navigationSerial;
+  Timer? loadTimer;
   Timer? pointerTimer;
   Offset? previousPointer;
   bool sentPointer = false;
@@ -122,6 +124,7 @@ class _NativeSurfaceState extends State<_NativeSurface> {
           },
           onPageStarted: (url) {
             if (!mounted) return;
+            _beginLoading();
             unawaited(
               controller
                       ?.runJavaScript(browserDesktopFullscreenScript)
@@ -134,6 +137,7 @@ class _NativeSurfaceState extends State<_NativeSurface> {
             }
           },
           onPageFinished: (_) {
+            loadTimer?.cancel();
             sentPointer = false;
             pageLoading = false;
             if (mounted) {
@@ -155,11 +159,21 @@ class _NativeSurfaceState extends State<_NativeSurface> {
               return; // A replaced WebKit navigation was cancelled.
             }
             if (mounted && failure.isForMainFrame != false) {
+              loadTimer?.cancel();
+              pageLoading = false;
               setState(
                 () => error =
                     'Không tải được trang. Kiểm tra kết nối rồi thử lại.',
               );
             }
+          },
+          onUrlChange: (change) {
+            final url = change.url;
+            if (!mounted || url == null || url == loadedUrl) return;
+            final uri = Uri.tryParse(url);
+            if (uri == null || !['http', 'https'].contains(uri.scheme)) return;
+            loadedUrl = url;
+            widget.onNavigate(url, pageLoading);
           },
           onNavigationRequest: (request) {
             if (!mounted) return NavigationDecision.prevent;
@@ -206,11 +220,7 @@ class _NativeSurfaceState extends State<_NativeSurface> {
     Timer.run(() {
       if (!mounted || controller == null) return;
       loadedUrl = uri.toString();
-      pageLoading = true;
-      setState(() {
-        error = null;
-        progress = 0;
-      });
+      _beginLoading();
       widget.onNavigate(loadedUrl!, false);
       unawaited(
         controller!.loadRequest(uri).catchError((_) {
@@ -224,8 +234,8 @@ class _NativeSurfaceState extends State<_NativeSurface> {
 
   Future<void> _navigate() async {
     if (controller == null) return;
-    error = null;
-    progress = 0;
+    navigationSerial = widget.workspace?.browserNavigationSerial;
+    _beginLoading();
     loadedUrl = widget.url;
     pageLoading = true;
     try {
@@ -239,6 +249,24 @@ class _NativeSurfaceState extends State<_NativeSurface> {
     }
   }
 
+  void _beginLoading() {
+    loadTimer?.cancel();
+    if (!mounted) return;
+    setState(() {
+      error = null;
+      progress = 0;
+      pageLoading = true;
+    });
+    loadTimer = Timer(const Duration(seconds: 30), () {
+      if (mounted && pageLoading) {
+        setState(
+          () =>
+              error = 'Trang đang mất quá lâu để tải. Bạn có thể thử tải lại.',
+        );
+      }
+    });
+  }
+
   @override
   void didUpdateWidget(_NativeSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -246,7 +274,14 @@ class _NativeSurfaceState extends State<_NativeSurface> {
       oldWidget.workspace?.pointerChanges.removeListener(_pointerChanged);
       widget.workspace?.pointerChanges.addListener(_pointerChanged);
     }
-    if (widget.url != loadedUrl || widget.reload != oldWidget.reload) {
+    // Native redirects/SPA locations are echoed asynchronously by the phone.
+    // Loading an older echo here cancels the navigation already in progress.
+    final serial = widget.workspace?.browserNavigationSerial;
+    if (widget.reload != oldWidget.reload ||
+        (serial != null && serial != navigationSerial) ||
+        (serial == null &&
+            widget.url != oldWidget.url &&
+            widget.url != loadedUrl)) {
       unawaited(_navigate());
     }
     if (widget.command?['serial'] != oldWidget.command?['serial'] &&
@@ -262,6 +297,7 @@ class _NativeSurfaceState extends State<_NativeSurface> {
 
   @override
   void dispose() {
+    loadTimer?.cancel();
     pointerTimer?.cancel();
     widget.workspace?.pointerChanges.removeListener(_pointerChanged);
     controller = null;
@@ -270,44 +306,47 @@ class _NativeSurfaceState extends State<_NativeSurface> {
 
   @override
   Widget build(BuildContext context) {
-    if (error != null) {
-      return ColoredBox(
-        color: AppColors.paper,
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.public_off_rounded,
-                  size: 34,
-                  color: AppColors.muted,
+    final failure = error == null
+        ? null
+        : ColoredBox(
+            color: AppColors.paper,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.public_off_rounded,
+                      size: 34,
+                      color: AppColors.muted,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(error!, textAlign: TextAlign.center),
+                    const SizedBox(height: 16),
+                    FilledButton.tonal(
+                      onPressed: () => unawaited(
+                        controller == null ? _initialize() : _navigate(),
+                      ),
+                      child: const Text('Thử lại'),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 16),
-                Text(error!, textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                FilledButton.tonal(
-                  onPressed: () => unawaited(
-                    controller == null ? _initialize() : _navigate(),
-                  ),
-                  child: const Text('Thử lại'),
-                ),
-              ],
+              ),
             ),
-          ),
-        ),
-      );
-    }
-    if (controller == null) return const ColoredBox(color: Colors.white);
+          );
     return Stack(
       children: [
-        Positioned.fill(
-          child: IgnorePointer(
-            ignoring: !widget.interactive,
-            child: WebViewWidget(controller: controller!),
+        if (controller != null)
+          Positioned.fill(
+            child: IgnorePointer(
+              ignoring: !widget.interactive || error != null,
+              child: WebViewWidget(controller: controller!),
+            ),
           ),
-        ),
+        if (failure != null) Positioned.fill(child: failure),
+        if (controller == null && failure == null)
+          const Center(child: CircularProgressIndicator()),
         if (progress < 100)
           Positioned(
             top: 0,

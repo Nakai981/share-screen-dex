@@ -23,6 +23,7 @@ class BrowserWindow extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     children: [
       PointerInterceptor(
+        intercepting: kIsWeb || workspace.forwardAction == null,
         child: SizedBox(
           key: const ValueKey('browser-toolbar'),
           height: browserToolbarHeight,
@@ -105,6 +106,7 @@ class BrowserWindow extends StatelessWidget {
       ),
       if (workspace.browserError != null)
         PointerInterceptor(
+          intercepting: kIsWeb || workspace.forwardAction == null,
           child: Container(
             width: double.infinity,
             padding: const EdgeInsets.all(10),
@@ -144,6 +146,7 @@ class BrowserWindow extends StatelessWidget {
               ),
       ),
       PointerInterceptor(
+        intercepting: kIsWeb || workspace.forwardAction == null,
         child: Container(
           height: browserFooterHeight,
           padding: const EdgeInsets.symmetric(horizontal: 14),

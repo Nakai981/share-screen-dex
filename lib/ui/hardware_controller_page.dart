@@ -172,6 +172,15 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
                     ),
                   ),
                   IconButton(
+                    key: const ValueKey('remote-close-window'),
+                    tooltip: 'Đóng cửa sổ đang chọn',
+                    onPressed: workspace.activeApp == null
+                        ? null
+                        : () => _windowAction('close'),
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    color: const Color(0xFFC44D44),
+                  ),
+                  IconButton(
                     key: const ValueKey('remote-keyboard-toggle'),
                     tooltip: keyboardVisible ? 'Ẩn bàn phím' : 'Hiện bàn phím',
                     onPressed: _toggleKeyboard,

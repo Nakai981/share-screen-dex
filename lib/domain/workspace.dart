@@ -140,6 +140,7 @@ class WorkspaceController extends ChangeNotifier {
   final List<String> _browserHistory = [browserHome];
   int _browserIndex = 0;
   int browserReload = 0;
+  int browserNavigationSerial = 0;
   int browserCommandSerial = 0;
   Map<String, Object?>? browserCommand;
   String? browserError;
@@ -281,15 +282,20 @@ class WorkspaceController extends ChangeNotifier {
       case 'open':
         if (app == null) return;
         _open(app);
+      case 'dockActivate':
+        if (app == null) return;
+        _activateDock(app);
       case 'focus':
         if (app == null) return;
         _focus(app);
       case 'minimize':
         if (app == null) return;
         _find(app)?.minimized = true;
+        if (app == DeskApp.browser) browserAddressEditing = false;
       case 'close':
         if (app == null) return;
         _windows.removeWhere((w) => w.app == app);
+        if (app == DeskApp.browser) browserAddressEditing = false;
       case 'maximize':
         if (app == null) return;
         final w = _find(app);
@@ -320,6 +326,7 @@ class WorkspaceController extends ChangeNotifier {
             _navigate(url);
           }
           browserError = null;
+          if (type == 'browserNavigate') browserNavigationSerial++;
           if (type == 'browserNavigate') browserAddressEditing = false;
           if (type == 'browserNavigate') _open(DeskApp.browser, launch: false);
         } on FormatException catch (error) {
@@ -328,14 +335,21 @@ class WorkspaceController extends ChangeNotifier {
         }
       case 'browserBack':
         browserAddressEditing = false;
-        if (browserCanGoBack) _browserIndex--;
+        if (browserCanGoBack) {
+          _browserIndex--;
+          browserNavigationSerial++;
+        }
         browserError = null;
       case 'browserForward':
         browserAddressEditing = false;
-        if (browserCanGoForward) _browserIndex++;
+        if (browserCanGoForward) {
+          _browserIndex++;
+          browserNavigationSerial++;
+        }
         browserError = null;
       case 'browserHome':
         browserAddressEditing = false;
+        browserNavigationSerial++;
         _navigate(browserHome);
         browserError = null;
       case 'browserReload':
@@ -476,6 +490,17 @@ class WorkspaceController extends ChangeNotifier {
     autoTile = false;
   }
 
+  void _activateDock(DeskApp app) {
+    final window = _find(app);
+    if (window != null && !window.minimized && activeApp == app) {
+      window.minimized = true;
+      if (app == DeskApp.browser) browserAddressEditing = false;
+      releasePointerCapture();
+    } else {
+      _open(app);
+    }
+  }
+
   void _fitWindows() {
     final width = canvasSize.width;
     for (final w in _windows) {
@@ -575,7 +600,7 @@ class WorkspaceController extends ChangeNotifier {
     // Coordinates match the virtual desktop, including the dock and controls.
     if (dockRect.contains(cursor)) {
       for (final app in DeskApp.values) {
-        if (dockItem(dockIndex(app)).contains(cursor)) _open(app);
+        if (dockItem(dockIndex(app)).contains(cursor)) _activateDock(app);
       }
       if (dockItem(3).contains(cursor)) wallpaper = (wallpaper + 1) % 3;
       return;
@@ -609,12 +634,19 @@ class WorkspaceController extends ChangeNotifier {
         }
       } else if (local.dy >= windowTitleHeight &&
           local.dy < browserContentTop) {
-        if (local.dx >= 8 && local.dx < 40 && browserCanGoBack) _browserIndex--;
+        if (local.dx >= 8 && local.dx < 40 && browserCanGoBack) {
+          _browserIndex--;
+          browserNavigationSerial++;
+        }
         if (local.dx >= 40 && local.dx < 72 && browserCanGoForward) {
           _browserIndex++;
+          browserNavigationSerial++;
         }
         if (local.dx >= 72 && local.dx < 104) browserReload++;
-        if (local.dx >= 104 && local.dx < 136) _navigate(browserHome);
+        if (local.dx >= 104 && local.dx < 136) {
+          _navigate(browserHome);
+          browserNavigationSerial++;
+        }
         browserAddressEditing = false;
       } else if (local.dy >= browserContentTop &&
           local.dy < r.height - browserContentBottom) {
@@ -690,6 +722,7 @@ class WorkspaceController extends ChangeNotifier {
     'browserHistory': List<String>.of(_browserHistory),
     'browserIndex': _browserIndex,
     'browserReload': browserReload,
+    'browserNavigationSerial': browserNavigationSerial,
     'browserCommand': forStorage ? null : browserCommand,
     'browserError': browserError,
     'browserAddressEditing': !forStorage && browserAddressEditing,
@@ -781,6 +814,7 @@ class WorkspaceController extends ChangeNotifier {
       json['browserIndex'],
     ).toInt().clamp(0, _browserHistory.length - 1);
     browserReload = _number(json['browserReload']).toInt();
+    browserNavigationSerial = _number(json['browserNavigationSerial']).toInt();
     browserError = json['browserError'] is String
         ? json['browserError'] as String
         : null;

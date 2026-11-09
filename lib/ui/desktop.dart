@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
@@ -92,6 +93,7 @@ class DesktopView extends StatelessWidget {
                             .firstOrNull,
                         builder: (window) => PointerInterceptor(
                           intercepting:
+                              (kIsWeb || workspace.forwardAction == null) &&
                               window.app != DeskApp.browser &&
                               workspace.activeApp == window.app,
                           child: _DesktopWindow(
@@ -105,6 +107,8 @@ class DesktopView extends StatelessWidget {
                       Positioned.fromRect(
                         rect: workspace.dockRect,
                         child: PointerInterceptor(
+                          intercepting:
+                              kIsWeb || workspace.forwardAction == null,
                           child: ListenableBuilder(
                             listenable: workspace.pointerChanges,
                             builder: (context, _) =>
@@ -291,71 +295,78 @@ class _DesktopWindow extends StatelessWidget {
               Column(
                 children: [
                   PointerInterceptor(
-                    intercepting: active,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onPanUpdate: (d) => action('moveWindow', d.delta),
-                      onDoubleTap: () => action('maximize'),
-                      child: Container(
-                        height: windowTitleHeight,
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFF7F9FA),
-                          border: Border(
-                            bottom: BorderSide(color: AppColors.line),
-                          ),
+                    intercepting:
+                        active && (kIsWeb || workspace.forwardAction == null),
+                    child: Container(
+                      height: windowTitleHeight,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF7F9FA),
+                        border: Border(
+                          bottom: BorderSide(color: AppColors.line),
                         ),
-                        child: Row(
-                          children: [
-                            const SizedBox(width: 16),
-                            Icon(
-                              switch (window.app) {
-                                DeskApp.notes => Icons.edit_note_rounded,
-                                DeskApp.guide => Icons.auto_awesome_rounded,
-                                DeskApp.browser => Icons.public_rounded,
-                              },
-                              color: notes
-                                  ? AppColors.blue
-                                  : const Color(0xFF358677),
-                              size: 16,
-                            ),
-                            const SizedBox(width: 9),
-                            Expanded(
-                              child: Text(
-                                switch (window.app) {
-                                  DeskApp.notes => 'Ghi chú',
-                                  DeskApp.guide => 'Bắt đầu cùng SideScreen',
-                                  DeskApp.browser => 'Trình duyệt',
-                                },
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onPanUpdate: (d) => action('moveWindow', d.delta),
+                              onDoubleTap: () => action('maximize'),
+                              child: Row(
+                                children: [
+                                  const SizedBox(width: 16),
+                                  Icon(
+                                    switch (window.app) {
+                                      DeskApp.notes => Icons.edit_note_rounded,
+                                      DeskApp.guide =>
+                                        Icons.auto_awesome_rounded,
+                                      DeskApp.browser => Icons.public_rounded,
+                                    },
+                                    color: notes
+                                        ? AppColors.blue
+                                        : const Color(0xFF358677),
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 9),
+                                  Expanded(
+                                    child: Text(
+                                      switch (window.app) {
+                                        DeskApp.notes => 'Ghi chú',
+                                        DeskApp.guide =>
+                                          'Bắt đầu cùng SideScreen',
+                                        DeskApp.browser => 'Trình duyệt',
+                                      },
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            _WindowButton(
-                              label: 'Thu nhỏ',
-                              icon: Icons.remove_rounded,
-                              onTap: () => action('minimize'),
-                            ),
-                            _WindowButton(
-                              label: window.maximized
-                                  ? 'Khôi phục'
-                                  : 'Phóng to',
-                              icon: window.maximized
-                                  ? Icons.filter_none_rounded
-                                  : Icons.crop_square_rounded,
-                              onTap: () => action('maximize'),
-                            ),
-                            _WindowButton(
-                              label: 'Đóng',
-                              icon: Icons.close_rounded,
-                              onTap: () => action('close'),
-                              close: true,
-                            ),
-                          ],
-                        ),
+                          ),
+                          _WindowButton(
+                            label: 'Thu nhỏ',
+                            icon: Icons.remove_rounded,
+                            onTap: () => action('minimize'),
+                          ),
+                          _WindowButton(
+                            label: window.maximized ? 'Khôi phục' : 'Phóng to',
+                            icon: window.maximized
+                                ? Icons.filter_none_rounded
+                                : Icons.crop_square_rounded,
+                            onTap: () => action('maximize'),
+                          ),
+                          _WindowButton(
+                            label: 'Đóng',
+                            icon: Icons.close_rounded,
+                            onTap: () => action('close'),
+                            close: true,
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -379,7 +390,8 @@ class _DesktopWindow extends StatelessWidget {
                   width: 28,
                   height: 28,
                   child: PointerInterceptor(
-                    intercepting: active,
+                    intercepting:
+                        active && (kIsWeb || workspace.forwardAction == null),
                     child: MouseRegion(
                       cursor: SystemMouseCursors.resizeUpLeftDownRight,
                       child: GestureDetector(
@@ -428,7 +440,11 @@ class _WindowButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         hoverColor: close ? const Color(0xFFFFE5DF) : AppColors.line,
-        child: Icon(icon, size: 16, color: AppColors.muted),
+        child: Icon(
+          icon,
+          size: 16,
+          color: close ? const Color(0xFFC44D44) : AppColors.muted,
+        ),
       ),
     ),
   );
@@ -590,6 +606,10 @@ class _NotesContentState extends State<_NotesContent> {
         child: TextField(
           key: const ValueKey('desktop-notes'),
           controller: text,
+          readOnly: widget.workspace.forwardAction != null,
+          canRequestFocus: widget.workspace.forwardAction == null,
+          showCursor: widget.workspace.forwardAction == null,
+          enableInteractiveSelection: widget.workspace.forwardAction == null,
           expands: true,
           maxLines: null,
           minLines: null,

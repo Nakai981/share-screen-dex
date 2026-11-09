@@ -5,6 +5,22 @@ import XCTest
 
 class RunnerTests: XCTestCase {
 
+  func testWindowControlsFollowNotesAndDisappearWhenAllWindowsClose() async {
+    await MainActor.run {
+      let overlay = ExternalDesktopOverlay(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+      overlay.apply(["fullScreen": true, "displayAspect": 16.0 / 9.0,
+                     "windows": [["app": "notes", "maximized": true]]])
+      XCTAssertFalse(overlay.windowControls.isHidden)
+      XCTAssertEqual(overlay.windowControls.frame.maxX, 1899.6, accuracy: 0.01)
+      XCTAssertEqual(overlay.windowControls.frame.minY, 44.4, accuracy: 0.01)
+      XCTAssertEqual(overlay.windowControls.subviews.count, 3)
+      overlay.apply(["windows": [["app": "notes", "x": 750, "y": 224, "width": 550]]])
+      XCTAssertEqual(overlay.windowControls.frame.minY, 270, accuracy: 0.01)
+      overlay.apply(["windows": []])
+      XCTAssertTrue(overlay.windowControls.isHidden)
+    }
+  }
+
   func testVideoExitControlStaysOutsideWebContentAndTracksWindow() async {
     await MainActor.run {
       let overlay = ExternalDesktopOverlay(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))

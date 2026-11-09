@@ -69,7 +69,7 @@ class _DesktopDockState extends State<DesktopDock> {
                   onTap: () => w.dispatch(
                     items[i].$1 == null
                         ? {'type': 'wallpaper'}
-                        : {'type': 'open', 'app': items[i].$1!.name},
+                        : {'type': 'dockActivate', 'app': items[i].$1!.name},
                   ),
                 ),
               ],

@@ -85,6 +85,12 @@ const browserInAppNavigationScript = r'''
   document.addEventListener('click', e => {
     const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
     if (!a || a.hasAttribute('download') || a.getAttribute('href').startsWith('#') || a.href.startsWith('javascript:')) return;
+    const url = new URL(a.href, location.href);
+    const http = ['http:', 'https:'].includes(url.protocol);
+    const appSite = /(^|\.)(youtube\.com|youtu\.be|facebook\.com)$/.test(url.hostname);
+    // Leave normal links, Google redirects and form/SPA handlers to the page.
+    // Only take over app hand-offs and new-window links.
+    if (http && !appSite && a.target !== '_blank') return;
     e.preventDefault();
     send(a.href);
   }, true);

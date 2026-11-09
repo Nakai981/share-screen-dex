@@ -113,6 +113,8 @@ final class ExternalDesktopOverlay: UIView {
   private let arrange = UIImageView(image: UIImage(systemName: "rectangle.split.3x1"))
   private let cursorView = UIView()
   let videoExit = UILabel()
+  let windowControls = UIView()
+  private var controlIcons: [UIImageView] = []
   private var icons: [UIImageView] = []
   private var labels: [UILabel] = []
   private var indicators: [UIView] = []
@@ -169,6 +171,18 @@ final class ExternalDesktopOverlay: UIView {
     videoExit.clipsToBounds = true
     videoExit.isHidden = true
     addSubview(videoExit)
+    windowControls.backgroundColor = UIColor(red: 247/255, green: 249/255, blue: 250/255, alpha: 1)
+    windowControls.isHidden = true
+    for symbol in ["minus", "arrow.up.left.and.arrow.down.right", "xmark"] {
+      let icon = UIImageView(image: UIImage(systemName: symbol))
+      icon.contentMode = .center
+      icon.tintColor = symbol == "xmark"
+        ? UIColor(red: 196/255, green: 77/255, blue: 68/255, alpha: 1)
+        : UIColor(red: 76/255, green: 96/255, blue: 106/255, alpha: 1)
+      windowControls.addSubview(icon)
+      controlIcons.append(icon)
+    }
+    addSubview(windowControls)
     configureCursor()
     addSubview(cursorView)
   }
@@ -217,7 +231,13 @@ final class ExternalDesktopOverlay: UIView {
   private func updateChrome() {
     guard scale > 0 else { return }
     let windows = snapshot["windows"] as? [[String: Any]] ?? []
-    let active = windows.last(where: { $0["minimized"] as? Bool != true })?["app"] as? String
+    let activeWindow = windows.last(where: { $0["minimized"] as? Bool != true })
+    let active = activeWindow?["app"] as? String
+    let activeMaximized = activeWindow?["maximized"] as? Bool == true
+    let activeX = activeMaximized ? 16 : (activeWindow?["x"] as? NSNumber)?.doubleValue ?? 100
+    let activeY = activeMaximized ? 36 : (activeWindow?["y"] as? NSNumber)?.doubleValue ?? 126
+    let activeWidth = activeMaximized ? logicalWidth - 32 : CGFloat((activeWindow?["width"] as? NSNumber)?.doubleValue ?? 590)
+    let controlsFrame = CGRect(x: CGFloat(activeX) + activeWidth - 109, y: CGFloat(activeY) + 1, width: 108, height: 36)
     let running = Set(windows.compactMap { $0["app"] as? String })
     let browser = windows.first(where: { $0["app"] as? String == "browser" && $0["minimized"] as? Bool != true })
     func value(_ key: String, _ fallback: CGFloat) -> CGFloat {
@@ -230,13 +250,20 @@ final class ExternalDesktopOverlay: UIView {
     let browserWidth = maximized ? logicalWidth - 32 : value("width", 1040)
     let exitWidth: CGFloat = browserWidth >= 600 ? 124 : 36
     let exitFrame = CGRect(x: browserX + browserWidth - 9 - exitWidth, y: browserY + 41, width: exitWidth, height: 36)
-    let key = "\(bounds.size)|\(logicalWidth)|\(barTop)|\(dockUnit)|\(running.sorted())|\(active ?? "")|\(exitFrame)"
+    let key = "\(bounds.size)|\(logicalWidth)|\(barTop)|\(dockUnit)|\(running.sorted())|\(active ?? "")|\(exitFrame)|\(controlsFrame)|\(activeMaximized)"
     guard key != chromeKey else { return }
     chromeKey = key
     let s = scale
     let unit = dockUnit * s
     CATransaction.begin()
     CATransaction.setDisableActions(true)
+    windowControls.isHidden = activeWindow == nil
+    windowControls.frame = CGRect(x: origin.x + controlsFrame.minX * s, y: origin.y + controlsFrame.minY * s, width: 108 * s, height: 36 * s)
+    controlIcons[1].image = UIImage(systemName: activeMaximized ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+    for i in 0..<3 {
+      controlIcons[i].frame = CGRect(x: CGFloat(i) * 36 * s, y: 0, width: 36 * s, height: 36 * s)
+      controlIcons[i].preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 13 * s, weight: .medium)
+    }
     videoExit.isHidden = active != "browser" || browser == nil
     videoExit.frame = CGRect(x: origin.x + exitFrame.minX * s, y: origin.y + exitFrame.minY * s, width: exitFrame.width * s, height: exitFrame.height * s)
     videoExit.text = browserWidth >= 600 ? "⤢  Thu nhỏ video" : "⤢"
