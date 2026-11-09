@@ -40,4 +40,19 @@ class RunnerTests: XCTestCase {
     }
   }
 
+  func testCompactDockKeepsItsPointSizeAcrossMonitors() async {
+    await MainActor.run {
+      for size in [CGSize(width: 1920, height: 1080), CGSize(width: 2560, height: 1600), CGSize(width: 3840, height: 2160)] {
+        let overlay = ExternalDesktopOverlay(frame: CGRect(origin: .zero, size: size))
+        overlay.apply(["fullScreen": true, "displayAspect": size.width / size.height,
+                       "viewportHeight": size.height, "safeInset": 32])
+        let bar = overlay.subviews.first!
+        XCTAssertEqual(bar.frame.width, 248, accuracy: 0.01)
+        XCTAssertEqual(bar.frame.height, 56, accuracy: 0.01)
+        XCTAssertEqual(bar.frame.midX, size.width / 2, accuracy: 0.01)
+        XCTAssertLessThan(bar.frame.maxY, size.height)
+      }
+    }
+  }
+
 }

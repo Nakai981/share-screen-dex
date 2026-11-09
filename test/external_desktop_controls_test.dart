@@ -44,15 +44,16 @@ void main() {
   );
 
   test(
-    'new apps and restored old layouts tile without hiding windows under each other',
+    'new apps and old layouts open maximized and arrange is an explicit action',
     () {
       workspace.dispatch({'type': 'open', 'app': 'browser'});
       expect(workspace.windows.where((w) => !w.minimized).length, 3);
-      expectSeparated();
+      expect(workspace.windows.every((w) => w.maximized), true);
+      expect(workspace.autoTile, false);
       workspace.dispatch({'type': 'minimize', 'app': 'guide'});
-      expectSeparated();
+      expect(workspace.windows.last.maximized, true);
       workspace.dispatch({'type': 'open', 'app': 'guide'});
-      expectSeparated();
+      expect(workspace.windows.last.maximized, true);
       workspace.restore({
         'schemaVersion': 1,
         'notes': 'Giữ bản nháp',
@@ -61,8 +62,35 @@ void main() {
             {'app': app.name, 'x': 100, 'y': 100, 'width': 550, 'height': 474},
         ],
       });
-      expectSeparated();
+      expect(workspace.windows.every((w) => w.maximized), true);
       expect(workspace.notes, 'Giữ bản nháp');
+      workspace.dispatch({'type': 'arrange'});
+      expectSeparated();
+    },
+  );
+
+  test(
+    'floating windows overlap and focus, minimize and close preserve other geometry',
+    () {
+      expect(workspace.windows.every((w) => w.maximized), true);
+      workspace.dispatch({'type': 'maximize', 'app': 'notes'});
+      workspace.dispatch({'type': 'open', 'app': 'browser'});
+      workspace.dispatch({'type': 'maximize', 'app': 'browser'});
+      final notes = workspace.windows.firstWhere((w) => w.app == DeskApp.notes);
+      final browser = workspace.windows.last;
+      final original = notes.rect;
+      expect(browser.rect.overlaps(notes.rect), true);
+      workspace.dispatch({'type': 'focus', 'app': 'notes'});
+      expect(workspace.windows.last, same(notes));
+      expect(browser.minimized, false);
+      workspace.dispatch({'type': 'minimize', 'app': 'browser'});
+      expect(notes.rect, original);
+      workspace.dispatch({'type': 'open', 'app': 'browser'});
+      expect(browser.maximized, false);
+      expect(notes.rect, original);
+      workspace.dispatch({'type': 'close', 'app': 'browser'});
+      expect(notes.rect, original);
+      expect(workspace.autoTile, false);
     },
   );
 
@@ -90,7 +118,7 @@ void main() {
   );
 
   test(
-    'narrow displays retain all apps and minimize older windows when tiles cannot fit',
+    'narrow displays keep overlapping apps available without automatic minimizing',
     () {
       workspace.dispatch({
         'type': 'displayViewport',
@@ -98,13 +126,12 @@ void main() {
         'height': 900,
       });
       workspace.dispatch({'type': 'open', 'app': 'browser'});
-      expectSeparated();
+      expect(workspace.windows.every((w) => !w.minimized && w.maximized), true);
       expect(workspace.activeApp, DeskApp.browser);
-      final hidden = workspace.windows.firstWhere((w) => w.minimized).app;
-      workspace.dispatch({'type': 'open', 'app': hidden.name});
-      expect(workspace.activeApp, hidden);
+      workspace.dispatch({'type': 'open', 'app': 'notes'});
+      expect(workspace.activeApp, DeskApp.notes);
       expect(workspace.windows.length, 3);
-      expectSeparated();
+      expect(workspace.windows.every((w) => !w.minimized && w.maximized), true);
     },
   );
 
@@ -121,11 +148,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      workspace.dispatch({'type': 'maximize', 'app': 'notes'});
       await tester.pumpAndSettle();
       final bar = tester.getRect(find.byKey(const ValueKey('desktop-taskbar')));
       expect(bar.bottom, lessThanOrEqualTo(900 - desktopSafeInset));
-      expect(bar.width, greaterThan(1000));
+      expect(bar.width, 248);
+      expect(bar.height, 56);
       await tester.tap(find.byKey(const ValueKey('dock-browser')));
       await tester.pumpAndSettle();
       expect(workspace.activeApp, DeskApp.browser);
@@ -163,6 +190,7 @@ void main() {
       expect(workspace.browserCommand?['type'], 'scroll');
       expect(workspace.browserCommand?['dy'], 120);
       workspace.dispatch({'type': 'close', 'app': 'browser'});
+      workspace.dispatch({'type': 'maximize', 'app': 'notes'});
       workspace.dispatch({
         'type': 'moveWindow',
         'app': 'notes',

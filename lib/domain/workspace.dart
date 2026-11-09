@@ -6,22 +6,31 @@ import 'package:flutter/painting.dart';
 const desktopSize = Size(1440, 900);
 const desktopTop = 44.0;
 const desktopSafeInset = 32.0;
-const desktopBottom = 766.0;
-const desktopDockRect = Rect.fromLTWH(32, 782, 1376, 86);
+const desktopBottom = 800.0;
+const desktopDockRect = Rect.fromLTWH(596, 812, 248, 56);
 const browserHome = 'sidescreen://home';
 const browserDemo = 'sidescreen://demo';
 
-Rect dockRectFor(Size size, [double safeInset = desktopSafeInset]) =>
-    Rect.fromLTWH(32, size.height - safeInset - 86, size.width - 64, 86);
+Rect dockRectFor(
+  Size size, [
+  double safeInset = desktopSafeInset,
+  double uiScale = 1,
+]) => Rect.fromLTWH(
+  (size.width - 248 * uiScale) / 2,
+  size.height - safeInset - 56 * uiScale,
+  248 * uiScale,
+  56 * uiScale,
+);
 Rect dockItemRect(
   int index, [
   Size size = desktopSize,
   double safeInset = desktopSafeInset,
+  double uiScale = 1,
 ]) => Rect.fromLTWH(
-  (size.width - 320) / 2 + index * 82,
-  size.height - safeInset - 78,
-  74,
-  70,
+  (size.width - 220 * uiScale) / 2 + index * 56 * uiScale,
+  size.height - safeInset - 50 * uiScale,
+  52 * uiScale,
+  44 * uiScale,
 );
 int dockIndex(DeskApp app) => switch (app) {
   DeskApp.notes => 0,
@@ -99,10 +108,12 @@ class WorkspaceController extends ChangeNotifier {
     DeskWindow(
       app: DeskApp.guide,
       rect: const Rect.fromLTWH(100, 126, 590, 520),
+      maximized: true,
     ),
     DeskWindow(
       app: DeskApp.notes,
       rect: const Rect.fromLTWH(750, 224, 550, 474),
+      maximized: true,
     ),
   ];
   final Map<DeskApp, int> launches = {};
@@ -125,15 +136,21 @@ class WorkspaceController extends ChangeNotifier {
   final pointerChanges = ChangeNotifier();
   double cursorScale = 1;
   int layoutEpoch = 0;
-  bool autoTile = true;
+  bool autoTile = false;
   double safeInset = desktopSafeInset;
   bool fullScreen = true;
   double displayAspect = 1.6;
+  double viewportHeight = 900;
+  bool _rendererHasViewport = false;
   KeyboardLanguage keyboardLanguage = KeyboardLanguage.system;
   Size get canvasSize => Size(fullScreen ? 900 * displayAspect : 1440, 900);
-  Rect get dockRect => dockRectFor(canvasSize, safeInset);
-  Rect dockItem(int index) => dockItemRect(index, canvasSize, safeInset);
-  double get workBottom => dockRect.top - 16;
+  double get dockScale =>
+      math.min(900 / viewportHeight, (canvasSize.width - 32) / 248);
+  Rect get dockRect => dockRectFor(canvasSize, safeInset, dockScale);
+  Rect dockItem(int index) =>
+      dockItemRect(index, canvasSize, safeInset, dockScale);
+  double get workBottom => dockRect.top - 12 * dockScale;
+  void forgetRendererViewport() => _rendererHasViewport = false;
   DeskApp? _dragging;
   bool _resizing = false;
   List<DeskWindow> get windows => List.unmodifiable(_windows);
@@ -153,31 +170,38 @@ class WorkspaceController extends ChangeNotifier {
         final width = _number(action['width']);
         final height = _number(action['height']);
         if (width <= 0 || height <= 0) return;
+        if (action['source'] == 'display' && _rendererHasViewport) return;
+        if (action['source'] == 'renderer') _rendererHasViewport = true;
         final aspect = (width / height).clamp(.6, 4.0);
-        if ((aspect - displayAspect).abs() < .001) return;
+        final newHeight = height.clamp(320.0, 8640.0);
+        if ((aspect - displayAspect).abs() < .001 &&
+            newHeight == viewportHeight) {
+          return;
+        }
         displayAspect = aspect;
+        viewportHeight = newHeight;
         _fitWindows();
-        if (autoTile) _tileVisible();
+        layoutEpoch++;
         persistent = false;
       case 'fullScreen':
         if (action['enabled'] is! bool) return;
         fullScreen = action['enabled'] == true;
         _fitWindows();
-        if (autoTile) _tileVisible();
+        layoutEpoch++;
       case 'safeInset':
         safeInset = _number(action['value'], desktopSafeInset).clamp(16, 96);
         _fitWindows();
-        if (autoTile) _tileVisible();
         layoutEpoch++;
       case 'arrange':
-        autoTile = true;
+        autoTile = false;
         _tileVisible();
       case 'recoverDesktop':
         safeInset = math.max(safeInset, 64);
         fullScreen = true;
-        autoTile = true;
+        autoTile = false;
         _fitWindows();
-        _tileVisible();
+        if (activeApp case final app?) _find(app)?.maximized = true;
+        layoutEpoch++;
         cursor = dockRect.center;
       case 'cycleWindow':
         final visible = _windows.where((w) => !w.minimized).toList();
@@ -199,11 +223,9 @@ class WorkspaceController extends ChangeNotifier {
       case 'minimize':
         if (app == null) return;
         _find(app)?.minimized = true;
-        if (autoTile) _tileVisible();
       case 'close':
         if (app == null) return;
         _windows.removeWhere((w) => w.app == app);
-        if (autoTile) _tileVisible();
       case 'maximize':
         if (app == null) return;
         final w = _find(app);
@@ -349,18 +371,14 @@ class WorkspaceController extends ChangeNotifier {
     if (launch) launches[app] = (launches[app] ?? 0) + 1;
     final existing = _find(app);
     if (existing != null) {
-      final wasMinimized = existing.minimized;
       existing.minimized = false;
       _focus(app);
-      if (launch || wasMinimized) {
-        autoTile = true;
-        _tileVisible();
-      }
       return;
     }
     _windows.add(
       DeskWindow(
         app: app,
+        maximized: true,
         rect: switch (app) {
           DeskApp.notes => const Rect.fromLTWH(750, 224, 550, 474),
           DeskApp.guide => const Rect.fromLTWH(100, 126, 590, 520),
@@ -369,8 +387,7 @@ class WorkspaceController extends ChangeNotifier {
       ),
     );
     _fitWindows();
-    autoTile = true;
-    _tileVisible();
+    autoTile = false;
   }
 
   void _fitWindows() {
@@ -465,11 +482,6 @@ class WorkspaceController extends ChangeNotifier {
   void _click() {
     // Coordinates match the virtual desktop, including the dock and controls.
     if (dockRect.contains(cursor)) {
-      if (canvasSize.width > 1000 && cursor.dx > dockRect.right - 68) {
-        autoTile = true;
-        _tileVisible();
-        return;
-      }
       for (final app in DeskApp.values) {
         if (dockItem(dockIndex(app)).contains(cursor)) _open(app);
       }
@@ -484,12 +496,10 @@ class WorkspaceController extends ChangeNotifier {
       final fromRight = r.right - cursor.dx;
       if (fromRight < 46) {
         _windows.remove(target);
-        if (autoTile) _tileVisible();
       } else if (fromRight < 92) {
         target.maximized = !target.maximized;
       } else {
         target.minimized = true;
-        if (autoTile) _tileVisible();
       }
     } else if (target.app == DeskApp.browser) {
       final local = cursor - r.topLeft;
@@ -538,7 +548,8 @@ class WorkspaceController extends ChangeNotifier {
 
   Map<String, Object?> snapshot({bool forStorage = false}) => {
     'schemaVersion': 1,
-    'layoutVersion': 3,
+    'layoutVersion': 4,
+    'viewportHeight': viewportHeight,
     'cursorScale': cursorScale,
     'layoutEpoch': layoutEpoch,
     'autoTile': autoTile,
@@ -565,7 +576,8 @@ class WorkspaceController extends ChangeNotifier {
     if (json['schemaVersion'] != 1 || json['windows'] is! List) return false;
     fullScreen = json['fullScreen'] != false;
     cursorScale = _number(json['cursorScale'], 1).clamp(.7, 1.5);
-    autoTile = json['autoTile'] != false;
+    autoTile = false;
+    viewportHeight = _number(json['viewportHeight'], 900).clamp(320, 8640);
     safeInset = _number(json['safeInset'], desktopSafeInset).clamp(16, 96);
     layoutEpoch = _number(json['layoutEpoch']).toInt();
     displayAspect = _number(json['displayAspect'], 1.6).clamp(.6, 4.0);
@@ -646,9 +658,17 @@ class WorkspaceController extends ChangeNotifier {
         ? Map<String, Object?>.from(json['browserCommand'] as Map)
         : null;
     browserCommandSerial = _number(browserCommand?['serial']).toInt();
-    if (json['layoutVersion'] != 3) {
-      autoTile = true;
-      _tileVisible();
+    if (json['layoutVersion'] != 4) {
+      for (final w in _windows) {
+        w.maximized = true;
+        w.rect = switch (w.app) {
+          DeskApp.notes => const Rect.fromLTWH(750, 224, 550, 474),
+          DeskApp.guide => const Rect.fromLTWH(100, 126, 590, 520),
+          DeskApp.browser => const Rect.fromLTWH(210, 92, 1040, 674),
+        };
+      }
+      _fitWindows();
+      layoutEpoch++;
     }
     revision++;
     _notify();

@@ -10,10 +10,11 @@ import 'package:side_screen/ui/desktop.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
-    'reopening an app retiles even after manual dragging enabled free layout',
+    'opening an app preserves floating windows and old layouts migrate to maximized',
     () {
       final workspace = WorkspaceController();
       addTearDown(workspace.dispose);
+      workspace.dispatch({'type': 'maximize', 'app': 'notes'});
       workspace.dispatch({
         'type': 'moveWindow',
         'app': 'notes',
@@ -21,14 +22,13 @@ void main() {
         'dy': -100,
       });
       expect(workspace.autoTile, false);
+      final notes = workspace.windows.last.rect;
       workspace.dispatch({'type': 'open', 'app': 'browser'});
-      final visible = workspace.windows.where((w) => !w.minimized).toList();
-      for (var i = 0; i < visible.length; i++) {
-        for (final other in visible.skip(i + 1)) {
-          expect(visible[i].visibleRect.overlaps(other.visibleRect), false);
-        }
-      }
-      workspace.dispatch({'type': 'maximize', 'app': 'browser'});
+      expect(
+        workspace.windows.firstWhere((w) => w.app == DeskApp.notes).rect,
+        notes,
+      );
+      expect(workspace.windows.last.maximized, true);
       workspace.dispatch({
         'type': 'browserNavigate',
         'url': 'https://example.com',
@@ -47,12 +47,12 @@ void main() {
             {'app': app, 'x': 100, 'y': 100, 'width': 550, 'height': 474},
         ],
       });
-      expect(workspace.autoTile, true);
+      expect(workspace.autoTile, false);
       expect(
         workspace.windows.first.visibleRect.overlaps(
           workspace.windows.last.visibleRect,
         ),
-        false,
+        true,
       );
     },
   );

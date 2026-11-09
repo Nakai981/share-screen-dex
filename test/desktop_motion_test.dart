@@ -59,6 +59,7 @@ void main() {
   testWidgets(
     'maximize animates geometry while a direct drag stays immediate',
     (tester) async {
+      workspace.dispatch({'type': 'maximize', 'app': 'notes'});
       await mount(tester);
       final surface = find.byKey(const ValueKey('window-opacity-notes'));
       final initial = tester.getRect(surface);

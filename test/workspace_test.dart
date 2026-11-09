@@ -4,7 +4,13 @@ import 'package:side_screen/domain/workspace.dart';
 
 void main() {
   late WorkspaceController desk;
-  setUp(() => desk = WorkspaceController());
+  setUp(() {
+    desk = WorkspaceController();
+    // These movement tests deliberately use restored, floating windows.
+    for (final app in [DeskApp.guide, DeskApp.notes]) {
+      desk.dispatch({'type': 'maximize', 'app': app.name});
+    }
+  });
   tearDown(() => desk.dispose());
 
   test('window movement and resizing keep controls within desktop bounds', () {

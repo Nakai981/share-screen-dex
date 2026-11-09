@@ -83,8 +83,11 @@ class BrowserWindow extends StatelessWidget {
                   [
                     'google.com',
                     'www.google.com',
+                    'facebook.com',
+                    'www.facebook.com',
+                    'm.facebook.com',
                   ].contains(Uri.tryParse(workspace.browserUrl)?.host)
-            ? _GoogleWebPage(url: workspace.browserUrl)
+            ? _ExternalWebPage(url: workspace.browserUrl)
             : kIsWeb && needsYouTubeExternalPage(workspace.browserUrl)
             ? _YouTubeWebPage(workspace: workspace)
             : browserSurface(
@@ -128,7 +131,7 @@ class BrowserWindow extends StatelessWidget {
                   style: const TextStyle(fontSize: 9, color: AppColors.muted),
                 ),
               ),
-              if (workspace.browserUrl.startsWith('http'))
+              if (kIsWeb && workspace.browserUrl.startsWith('http'))
                 TextButton.icon(
                   onPressed: () => _openExternal(context, workspace.browserUrl),
                   style: TextButton.styleFrom(
@@ -348,6 +351,24 @@ class _BrowserHome extends StatelessWidget {
                     }),
                   ),
                   _SiteTile(
+                    icon: Icons.play_circle_outline_rounded,
+                    title: 'YouTube',
+                    subtitle: 'Website video',
+                    onTap: () => workspace.dispatch({
+                      'type': 'browserNavigate',
+                      'url': 'https://www.youtube.com',
+                    }),
+                  ),
+                  _SiteTile(
+                    icon: Icons.people_outline_rounded,
+                    title: 'Facebook',
+                    subtitle: 'Website mạng xã hội',
+                    onTap: () => workspace.dispatch({
+                      'type': 'browserNavigate',
+                      'url': 'https://www.facebook.com',
+                    }),
+                  ),
+                  _SiteTile(
                     icon: Icons.language_rounded,
                     title: 'Wikipedia',
                     subtitle: 'Khám phá kiến thức',
@@ -429,9 +450,11 @@ class _YouTubeWebPage extends StatelessWidget {
   );
 }
 
-class _GoogleWebPage extends StatelessWidget {
-  const _GoogleWebPage({required this.url});
+class _ExternalWebPage extends StatelessWidget {
+  const _ExternalWebPage({required this.url});
   final String url;
+  String get site =>
+      Uri.parse(url).host.endsWith('facebook.com') ? 'Facebook' : 'Google';
   @override
   Widget build(BuildContext context) => ColoredBox(
     color: Colors.white,
@@ -443,22 +466,22 @@ class _GoogleWebPage extends StatelessWidget {
           children: [
             const Icon(Icons.search_rounded, size: 40, color: AppColors.blue),
             const SizedBox(height: 18),
-            const Text(
-              'Tìm với Google',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+            Text(
+              'Mở $site',
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
             ),
             const SizedBox(height: 10),
             Text(
-              Uri.parse(url).queryParameters['q'] ?? 'google.com',
+              Uri.parse(url).queryParameters['q'] ?? Uri.parse(url).host,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 14),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 420),
-              child: const Text(
-                'Google mở trong tab riêng khi xem thử trên web. Trên app điện thoại, Google mở trong cửa sổ trình duyệt này.',
+              child: Text(
+                '$site mở trong tab riêng khi xem thử trên web. Trên app điện thoại, website mở trong cửa sổ trình duyệt này.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 12,
                   color: AppColors.muted,
                   height: 1.7,
@@ -469,7 +492,7 @@ class _GoogleWebPage extends StatelessWidget {
             FilledButton.icon(
               onPressed: () => _openExternal(context, url),
               icon: const Icon(Icons.open_in_new_rounded, size: 18),
-              label: const Text('Mở Google'),
+              label: Text('Mở $site'),
             ),
           ],
         ),

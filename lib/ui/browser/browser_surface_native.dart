@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 import '../../domain/workspace.dart';
 import '../theme.dart';
 import 'browser_content.dart';
+import 'browser_navigation_policy.dart';
 
 Widget browserSurface({
   required String url,
@@ -61,10 +63,28 @@ class _NativeSurfaceState extends State<_NativeSurface> {
       return;
     }
     try {
-      final next = WebViewController();
+      final params = WebViewPlatform.instance is WebKitWebViewPlatform
+          ? WebKitWebViewControllerCreationParams(
+              allowsInlineMediaPlayback: true,
+              mediaTypesRequiringUserAction: const <PlaybackMediaTypes>{},
+            )
+          : const PlatformWebViewControllerCreationParams();
+      final next = WebViewController.fromPlatformCreationParams(params);
       controller = next;
       await next.setJavaScriptMode(JavaScriptMode.unrestricted);
       await next.setBackgroundColor(Colors.white);
+      String? userAgent;
+      try {
+        userAgent = await next.getUserAgent();
+      } catch (_) {}
+      await next.setUserAgent(desktopBrowserUserAgent(userAgent));
+      await next.addJavaScriptChannel(
+        'SideScreenBrowser',
+        onMessageReceived: (message) {
+          final target = browserWebDestination(message.message);
+          if (target != null) _openWebLink(target);
+        },
+      );
       await next.setNavigationDelegate(
         NavigationDelegate(
           onProgress: (value) {
@@ -79,9 +99,20 @@ class _NativeSurfaceState extends State<_NativeSurface> {
           },
           onPageFinished: (_) {
             pageLoading = false;
-            if (mounted) setState(() => progress = 100);
+            if (mounted) {
+              setState(() => progress = 100);
+              unawaited(
+                controller
+                        ?.runJavaScript(browserInAppNavigationScript)
+                        .catchError((_) {}) ??
+                    Future<void>.value(),
+              );
+            }
           },
           onWebResourceError: (failure) {
+            if (failure.errorCode == -999) {
+              return; // A replaced WebKit navigation was cancelled.
+            }
             if (mounted && failure.isForMainFrame != false) {
               setState(
                 () => error =
@@ -92,6 +123,12 @@ class _NativeSurfaceState extends State<_NativeSurface> {
           onNavigationRequest: (request) {
             if (!mounted) return NavigationDecision.prevent;
             final uri = Uri.tryParse(request.url);
+            if (uri != null &&
+                !['http', 'https', 'about'].contains(uri.scheme)) {
+              final target = browserWebDestination(request.url);
+              if (target != null) _openWebLink(target);
+              return NavigationDecision.prevent;
+            }
             if (uri != null &&
                 ['https', 'http'].contains(uri.scheme) &&
                 request.isMainFrame &&
@@ -120,6 +157,28 @@ class _NativeSurfaceState extends State<_NativeSurface> {
         );
       }
     }
+  }
+
+  void _openWebLink(Uri uri) {
+    // Run after the navigation decision/JS callback has completed. Native
+    // loadRequest keeps universal links inside WKWebView instead of an app.
+    Timer.run(() {
+      if (!mounted || controller == null) return;
+      loadedUrl = uri.toString();
+      pageLoading = true;
+      setState(() {
+        error = null;
+        progress = 0;
+      });
+      widget.onNavigate(loadedUrl!, false);
+      unawaited(
+        controller!.loadRequest(uri).catchError((_) {
+          if (mounted) {
+            setState(() => error = 'Không tải được trang. Hãy thử lại.');
+          }
+        }),
+      );
+    });
   }
 
   Future<void> _navigate() async {

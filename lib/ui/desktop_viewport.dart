@@ -34,6 +34,7 @@ class _DesktopViewportState extends State<DesktopViewport> {
           if (mounted && reported == size) {
             widget.workspace.dispatch({
               'type': 'displayViewport',
+              'source': 'renderer',
               'width': size.width,
               'height': size.height,
             });

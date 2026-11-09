@@ -184,38 +184,45 @@ final class ExternalDesktopOverlay: UIView {
   private var origin: CGPoint {
     CGPoint(x: (bounds.width - logicalWidth * scale) / 2, y: (bounds.height - 900 * scale) / 2)
   }
-  private var barTop: CGFloat { 900 - min(96, max(16, number("safeInset", fallback: 32))) - 86 }
+  private var dockUnit: CGFloat {
+    min(900 / min(8640, max(320, number("viewportHeight", fallback: 900))), (logicalWidth - 32) / 248)
+  }
+  private var barLeft: CGFloat { (logicalWidth - 248 * dockUnit) / 2 }
+  private var barTop: CGFloat { 900 - min(96, max(16, number("safeInset", fallback: 32))) - 56 * dockUnit }
 
   private func updateChrome() {
     guard scale > 0 else { return }
     let windows = snapshot["windows"] as? [[String: Any]] ?? []
     let active = windows.last(where: { $0["minimized"] as? Bool != true })?["app"] as? String
     let running = Set(windows.compactMap { $0["app"] as? String })
-    let key = "\(bounds.size)|\(logicalWidth)|\(barTop)|\(running.sorted())|\(active ?? "")"
+    let key = "\(bounds.size)|\(logicalWidth)|\(barTop)|\(dockUnit)|\(running.sorted())|\(active ?? "")"
     guard key != chromeKey else { return }
     chromeKey = key
     let s = scale
+    let unit = dockUnit * s
     CATransaction.begin()
     CATransaction.setDisableActions(true)
-    taskbar.frame = CGRect(x: origin.x + 32 * s, y: origin.y + barTop * s, width: (logicalWidth - 64) * s, height: 86 * s)
-    taskbar.layer.cornerRadius = 24 * s
-    brand.isHidden = logicalWidth <= 1000
-    brand.frame = CGRect(x: 24 * s, y: 24 * s, width: 180 * s, height: 38 * s)
-    brand.font = .systemFont(ofSize: 13 * s, weight: .semibold)
-    arrange.isHidden = logicalWidth <= 1000
-    arrange.frame = CGRect(x: taskbar.bounds.width - 48 * s, y: 31 * s, width: 23 * s, height: 23 * s)
+    taskbar.frame = CGRect(x: origin.x + barLeft * s, y: origin.y + barTop * s, width: 248 * unit, height: 56 * unit)
+    taskbar.layer.cornerRadius = 18 * unit
+    brand.isHidden = true
+    arrange.isHidden = true
     for i in 0..<4 {
-      let x = (logicalWidth - 320) / 2 + CGFloat(i) * 82 - 32
+      let x = 14 + CGFloat(i) * 56
       icons[i].transform = .identity
-      icons[i].frame = CGRect(x: (x + 18) * s, y: 12 * s, width: 38 * s, height: 38 * s)
-      icons[i].layer.cornerRadius = 12 * s
-      icons[i].preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 23 * s, weight: .medium)
-      labels[i].frame = CGRect(x: x * s, y: 53 * s, width: 74 * s, height: 15 * s)
-      labels[i].font = .systemFont(ofSize: 9 * s, weight: .semibold)
+      icons[i].frame = CGRect(x: (x + 11) * unit, y: 9.5 * unit, width: 30 * unit, height: 30 * unit)
+      icons[i].layer.cornerRadius = 9 * unit
+      icons[i].preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 20 * unit, weight: .medium)
+      labels[i].frame = CGRect(x: (x + 26 - 50) * unit, y: -31 * unit, width: 100 * unit, height: 25 * unit)
+      labels[i].font = .systemFont(ofSize: 10 * unit, weight: .medium)
+      labels[i].textColor = .white
+      labels[i].backgroundColor = UIColor(red: 24/255, green: 49/255, blue: 63/255, alpha: 1)
+      labels[i].layer.cornerRadius = 7 * unit
+      labels[i].clipsToBounds = true
+      labels[i].isHidden = true
       indicators[i].isHidden = !running.contains(names[i])
-      let width: CGFloat = active == names[i] ? 14 : 4
-      indicators[i].frame = CGRect(x: (x + 37 - width / 2) * s, y: 72 * s, width: width * s, height: 4 * s)
-      indicators[i].layer.cornerRadius = 2 * s
+      let width: CGFloat = active == names[i] ? 10 : 3
+      indicators[i].frame = CGRect(x: (x + 26 - width / 2) * unit, y: 43.5 * unit, width: width * unit, height: 3 * unit)
+      indicators[i].layer.cornerRadius = 1.5 * unit
     }
     hoverIndex = nil
     CATransaction.commit()
@@ -278,13 +285,14 @@ final class ExternalDesktopOverlay: UIView {
     cursorView.layer.setAffineTransform(CGAffineTransform(scaleX: cursorScale * 0.8, y: cursorScale * 20 / 24))
     CATransaction.commit()
     let index = (0..<4).first { i in
-      CGRect(x: (logicalWidth - 320) / 2 + CGFloat(i) * 82, y: barTop + 8, width: 74, height: 70).contains(CGPoint(x: x, y: y))
+      CGRect(x: barLeft + (14 + CGFloat(i) * 56) * dockUnit, y: barTop + 6 * dockUnit, width: 52 * dockUnit, height: 44 * dockUnit).contains(CGPoint(x: x, y: y))
     }
     if index != hoverIndex {
       hoverIndex = index
       UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.12, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
         for i in 0..<4 {
-          self.icons[i].transform = index == i ? CGAffineTransform(translationX: 0, y: -8 * self.scale).scaledBy(x: 1.15, y: 1.15) : .identity
+          self.icons[i].transform = index == i ? CGAffineTransform(translationX: 0, y: -5 * self.scale * self.dockUnit).scaledBy(x: 1.18, y: 1.18) : .identity
+          self.labels[i].isHidden = index != i
         }
       }
     }

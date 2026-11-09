@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../domain/workspace.dart';
@@ -16,12 +15,12 @@ class _DesktopDockState extends State<DesktopDock> {
   int? mouseHover;
   @override
   Widget build(BuildContext context) {
-    final workspace = widget.workspace;
-    final virtualHover = [
+    final w = widget.workspace;
+    final virtual = [
       for (var i = 0; i < 4; i++)
-        if (workspace.dockItem(i).contains(workspace.cursor)) i,
+        if (w.dockItem(i).contains(w.cursor)) i,
     ].firstOrNull;
-    final hover = mouseHover ?? virtualHover;
+    final hover = mouseHover ?? virtual;
     final items = [
       (DeskApp.notes, 'Ghi chú', Icons.edit_note_rounded, AppColors.blue),
       (
@@ -38,90 +37,56 @@ class _DesktopDockState extends State<DesktopDock> {
       ),
       (null, 'Hình nền', Icons.palette_outlined, const Color(0xFFB57960)),
     ];
-    return Container(
-      key: const ValueKey('desktop-taskbar'),
-      width: workspace.dockRect.width,
-      height: workspace.dockRect.height,
-      padding: const EdgeInsets.all(7),
-      decoration: BoxDecoration(
-        color: const Color(0xEDF5F8F9),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0x88FFFFFF)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x40102028),
-            blurRadius: 30,
-            offset: Offset(0, 10),
+    return SizedBox(
+      width: w.dockRect.width,
+      height: w.dockRect.height,
+      child: FittedBox(
+        fit: BoxFit.fill,
+        child: Container(
+          key: const ValueKey('desktop-taskbar'),
+          width: 248,
+          height: 56,
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 5),
+          decoration: BoxDecoration(
+            color: const Color(0xF2F5F8F9),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xB3FFFFFF)),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x29102028),
+                blurRadius: 18,
+                offset: Offset(0, 6),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Stack(
-        alignment: Alignment.center,
-        clipBehavior: Clip.none,
-        children: [
-          if (workspace.canvasSize.width > 1000) ...[
-            const Positioned(
-              left: 16,
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.space_dashboard_rounded,
-                    size: 22,
-                    color: AppColors.ink,
+          child: Row(
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                if (i > 0) const SizedBox(width: 4),
+                _DockTile(
+                  key: ValueKey('dock-${items[i].$1?.name ?? 'wallpaper'}'),
+                  label: items[i].$2,
+                  icon: items[i].$3,
+                  color: items[i].$4,
+                  hover: hover == null
+                      ? 0
+                      : math.max(0, 1 - (i - hover).abs() * .8),
+                  selected: hover == i,
+                  active: w.activeApp == items[i].$1,
+                  running: w.windows.any((window) => window.app == items[i].$1),
+                  launches: w.launches[items[i].$1] ?? 0,
+                  onEnter: () => setState(() => mouseHover = i),
+                  onExit: () => setState(() => mouseHover = null),
+                  onTap: () => w.dispatch(
+                    items[i].$1 == null
+                        ? {'type': 'wallpaper'}
+                        : {'type': 'open', 'app': items[i].$1!.name},
                   ),
-                  SizedBox(width: 10),
-                  Text(
-                    'SideScreen',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                  ),
-                ],
-              ),
-            ),
-            Positioned(
-              right: 12,
-              child: IconButton(
-                tooltip: 'Sắp xếp cửa sổ cạnh nhau',
-                onPressed: () => workspace.dispatch({'type': 'arrange'}),
-                icon: const Icon(Icons.view_column_outlined, size: 23),
-              ),
-            ),
-          ],
-          SizedBox(
-            width: 320,
-            height: 70,
-            child: Row(
-              children: [
-                for (var index = 0; index < items.length; index++) ...[
-                  if (index > 0) const SizedBox(width: 8),
-                  _DockTile(
-                    key: ValueKey(
-                      'dock-${items[index].$1?.name ?? 'wallpaper'}',
-                    ),
-                    label: items[index].$2,
-                    icon: items[index].$3,
-                    color: items[index].$4,
-                    hover: hover == null
-                        ? 0
-                        : math.max(0, 1 - (index - hover).abs() * .72),
-                    selected: hover == index,
-                    active: workspace.activeApp == items[index].$1,
-                    running: workspace.windows.any(
-                      (w) => w.app == items[index].$1,
-                    ),
-                    launches: workspace.launches[items[index].$1] ?? 0,
-                    onEnter: () => setState(() => mouseHover = index),
-                    onExit: () => setState(() => mouseHover = null),
-                    onTap: () => workspace.dispatch(
-                      items[index].$1 == null
-                          ? {'type': 'wallpaper'}
-                          : {'type': 'open', 'app': items[index].$1!.name},
-                    ),
-                  ),
-                ],
+                ),
               ],
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -146,22 +111,18 @@ class _DockTile extends StatefulWidget {
   final IconData icon;
   final Color color;
   final double hover;
-  final bool selected;
-  final bool active;
-  final bool running;
+  final bool selected, active, running;
   final int launches;
-  final VoidCallback onEnter;
-  final VoidCallback onExit;
-  final VoidCallback onTap;
+  final VoidCallback onEnter, onExit, onTap;
   @override
   State<_DockTile> createState() => _DockTileState();
 }
 
 class _DockTileState extends State<_DockTile>
     with SingleTickerProviderStateMixin {
-  late final AnimationController bounce = AnimationController(
+  late final bounce = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 440),
+    duration: const Duration(milliseconds: 360),
   );
   bool pressed = false;
   @override
@@ -194,52 +155,40 @@ class _DockTileState extends State<_DockTile>
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTapDown: (_) => setState(() => pressed = true),
-          onTapCancel: () => setState(() => pressed = false),
           onTapUp: (_) => setState(() => pressed = false),
+          onTapCancel: () => setState(() => pressed = false),
           onTap: widget.onTap,
           child: SizedBox(
-            width: 74,
-            height: 70,
+            width: 52,
+            height: 44,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
                 Positioned(
-                  top: -39,
-                  left: -20,
-                  right: -20,
+                  top: -37,
+                  left: -30,
+                  right: -30,
                   child: IgnorePointer(
-                    child: AnimatedSlide(
-                      offset: widget.selected
-                          ? Offset.zero
-                          : const Offset(0, .25),
+                    child: AnimatedOpacity(
+                      opacity: widget.selected ? 1 : 0,
                       duration: duration,
-                      curve: Curves.easeOutCubic,
-                      child: AnimatedOpacity(
-                        opacity: widget.selected ? 1 : 0,
-                        duration: duration,
-                        child: Center(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 7,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppColors.ink,
-                              borderRadius: BorderRadius.circular(9),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Color(0x33102028),
-                                  blurRadius: 12,
-                                  offset: Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Text(
-                              widget.label,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.white,
-                              ),
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.ink,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            widget.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.white,
                             ),
                           ),
                         ),
@@ -260,56 +209,36 @@ class _DockTileState extends State<_DockTile>
                           Transform.translate(
                             offset: Offset(
                               0,
-                              -10 * hover -
-                                  14 * math.sin(math.pi * bounce.value),
+                              -5 * hover - 7 * math.sin(math.pi * bounce.value),
                             ),
                             child: Transform.scale(
                               key: ValueKey('dock-scale-${widget.label}'),
-                              scale: pressed ? .9 : 1 + .22 * hover,
+                              scale: pressed ? .9 : 1 + .18 * hover,
                               child: Container(
-                                width: 38,
-                                height: 38,
+                                width: 30,
+                                height: 30,
                                 decoration: BoxDecoration(
                                   color: widget.color,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: widget.color.withValues(
-                                        alpha: .12 + .24 * hover,
-                                      ),
-                                      blurRadius: 4 + 16 * hover,
-                                      offset: Offset(0, 2 + 5 * hover),
-                                    ),
-                                  ],
+                                  borderRadius: BorderRadius.circular(9),
                                 ),
                                 child: Icon(
                                   widget.icon,
+                                  size: 21,
                                   color: Colors.white,
-                                  size: 25,
                                 ),
                               ),
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            widget.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 9,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
                           AnimatedContainer(
                             duration: duration,
-                            width: widget.active ? 14 : 4,
-                            height: 4,
+                            width: widget.active ? 10 : 3,
+                            height: 3,
                             decoration: BoxDecoration(
                               color: widget.running
                                   ? widget.color
                                   : Colors.transparent,
-                              borderRadius: BorderRadius.circular(3),
+                              borderRadius: BorderRadius.circular(2),
                             ),
                           ),
                         ],

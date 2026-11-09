@@ -30,7 +30,6 @@ void main() {
         );
         workspace.dispatch({'type': 'close', 'app': 'browser'});
         workspace.dispatch({'type': 'open', 'app': 'browser'});
-        workspace.dispatch({'type': 'maximize', 'app': 'browser'});
         final window = workspace.windows.last;
         expect(window.visibleRect.right, workspace.canvasSize.width - 16);
         workspace.dispatch({'type': 'minimize', 'app': 'browser'});
@@ -60,7 +59,12 @@ void main() {
     },
   );
 
-  for (final size in [const Size(1920, 1080), const Size(2560, 1600)]) {
+  for (final size in [
+    const Size(1920, 1080),
+    const Size(2560, 1600),
+    const Size(3440, 1440),
+    const Size(3840, 2160),
+  ]) {
     testWidgets(
       'external workspace fills ${size.width} × ${size.height} without stretching or clipping',
       (tester) async {
@@ -81,11 +85,61 @@ void main() {
               widget is CustomPaint && widget.painter is WallpaperPainter,
         );
         expect(tester.getRect(wallpaper), Offset.zero & size);
+        final dock = tester.getRect(
+          find.byKey(const ValueKey('desktop-taskbar')),
+        );
+        expect(dock.width, closeTo(248, .01));
+        expect(dock.height, closeTo(56, .01));
+        expect(dock.center.dx, closeTo(size.width / 2, .01));
+        final browser = find.byKey(const ValueKey('dock-browser'));
+        final hitPoint = workspace.dockItem(1).center * (size.height / 900);
+        expect(tester.getRect(browser).contains(hitPoint), true);
+        await tester.tap(browser);
+        await tester.pumpAndSettle();
+        expect(workspace.activeApp, DeskApp.browser);
+        expect(workspace.windows.last.maximized, true);
         expect(tester.takeException(), isNull);
         await tester.pumpWidget(const SizedBox());
       },
     );
   }
+
+  test(
+    'renderer point dimensions override physical display metadata until disconnect',
+    () {
+      final workspace = WorkspaceController();
+      addTearDown(workspace.dispose);
+      workspace.dispatch({
+        'type': 'displayViewport',
+        'width': 1920,
+        'height': 1080,
+        'source': 'display',
+      });
+      workspace.dispatch({
+        'type': 'displayViewport',
+        'width': 1280,
+        'height': 720,
+        'source': 'renderer',
+      });
+      final rect = workspace.dockRect;
+      workspace.dispatch({
+        'type': 'displayViewport',
+        'width': 3840,
+        'height': 2160,
+        'source': 'display',
+      });
+      expect(workspace.viewportHeight, 720);
+      expect(workspace.dockRect, rect);
+      workspace.forgetRendererViewport();
+      workspace.dispatch({
+        'type': 'displayViewport',
+        'width': 3840,
+        'height': 2160,
+        'source': 'display',
+      });
+      expect(workspace.viewportHeight, 2160);
+    },
+  );
 
   test(
     'keyboard language persists and unchanged echoes preserve an IME composing range',

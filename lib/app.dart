@@ -32,12 +32,14 @@ class AppSession extends ChangeNotifier with WidgetsBindingObserver {
     bridge.onStatus = (value) {
       if (!_disposed) {
         status = value;
+        if (!external && !value.presenting) workspace.forgetRendererViewport();
         if (!external &&
             value.presenting &&
             value.width != null &&
             value.height != null) {
           workspace.dispatch({
             'type': 'displayViewport',
+            'source': 'display',
             'width': value.width,
             'height': value.height,
           });
@@ -63,6 +65,7 @@ class AppSession extends ChangeNotifier with WidgetsBindingObserver {
         status.height != null) {
       workspace.dispatch({
         'type': 'displayViewport',
+        'source': 'display',
         'width': status.width,
         'height': status.height,
       });
