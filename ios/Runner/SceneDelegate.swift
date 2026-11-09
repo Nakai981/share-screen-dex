@@ -32,6 +32,7 @@ class ExternalDisplaySceneDelegate: UIResponder, UIWindowSceneDelegate, FlutterS
   var window: UIWindow?
   private var engine: FlutterEngine?
   private var chromeWindow: ExternalDesktopChromeWindow?
+  private var browserWindow: ExternalBrowserWindow?
 
   func scene(
     _ scene: UIScene,
@@ -50,6 +51,12 @@ class ExternalDisplaySceneDelegate: UIResponder, UIWindowSceneDelegate, FlutterS
     nextWindow.backgroundColor = UIColor(red: 23/255, green: 58/255, blue: 70/255, alpha: 1)
     window = nextWindow
     nextWindow.isHidden = false
+    let browser = ExternalBrowserWindow(windowScene: windowScene)
+    browser.frame = windowScene.coordinateSpace.bounds
+    browser.installBrowserHost()
+    browserWindow = browser
+    browser.isHidden = false
+    ExternalDisplayCoordinator.shared.attachBrowserHost(browser.browserHost)
     let chrome = ExternalDesktopChromeWindow(windowScene: windowScene)
     chrome.frame = windowScene.coordinateSpace.bounds
     chrome.installDesktopOverlay()
@@ -71,6 +78,10 @@ class ExternalDisplaySceneDelegate: UIResponder, UIWindowSceneDelegate, FlutterS
     chromeWindow?.isHidden = true
     chromeWindow?.rootViewController = nil
     chromeWindow = nil
+    browserWindow?.browserHost.detach()
+    browserWindow?.isHidden = true
+    browserWindow?.rootViewController = nil
+    browserWindow = nil
     window?.isHidden = true
     window?.rootViewController = nil
     window = nil

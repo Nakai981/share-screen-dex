@@ -2,7 +2,11 @@
 
 Ứng dụng Flutter cho Android/iPhone: khi mở app và có màn hình ngoài được hệ điều hành cấp qua USB-C/HDMI, app mở một không gian làm việc riêng trên màn hình đó. Điện thoại là bàn điều khiển.
 
-## Bản 0.9 đã có
+## Bản 0.10 đã có
+
+- Sửa đường hiển thị WebView trên màn hình ngoài iPhone: giữ controller của plugin nhưng đặt WKWebView trực tiếp trong UIWindow riêng, theo tọa độ màn hình ngoài. Tránh bộ dựng platform view dùng tỷ lệ màn hình điện thoại làm trang web bị co về góc trái và để trắng phần còn lại.
+- Vùng web dùng chung hình học với con trỏ, chừa đúng tiêu đề, thanh địa chỉ, thông báo lỗi và chân cửa sổ. Khi cửa sổ khác nằm phía trước, phần web bị che được cắt đúng vùng; thu nhỏ/khôi phục vẫn giữ trang.
+- Cần cài lại **cả Swift và Flutter 0.10**. Hướng dẫn kiểm tra iPhone: [docs/IOS_BROWSER_GEOMETRY.md](docs/IOS_BROWSER_GEOMETRY.md). Phần Swift mới chưa được build/chạy trên iPhone trong môi trường Windows này.
 
 - Bấm biểu tượng Dock của app đang ở trước để thu nhỏ; bấm lại để khôi phục. App phía sau được đưa lên trước; app đã đóng được mở lại. Cả chuột thật và chuột ảo dùng cùng quy tắc.
 - Nút đóng cửa sổ phản hồi ngay, không chờ nhận diện nhấp đúp tiêu đề. Điện thoại có nút **✕** trực tiếp; iOS vẽ thêm bộ nút thu nhỏ/khôi phục/đóng trên lớp chrome riêng của cửa sổ đang chọn. Ghi chú ở màn hình ngoài không nhận bàn phím hay tạo lớp chặn chuột native.
@@ -14,7 +18,7 @@
 - Bấm ô địa chỉ bằng chuột ảo tự mở ô nhập trên điện thoại; chữ đang nhập và con trỏ nháy đồng bộ lên màn hình ngoài. Bàn phím vẫn thuộc điện thoại.
 
 - Hai giao diện độc lập: điều khiển trên điện thoại và desktop trên màn hình ngoài.
-- iOS đặt taskbar và con trỏ trong một UIWindow trong suốt riêng, cao hơn cửa sổ nội dung/native fullscreen, không nhận chạm hay lấy quyền bàn phím của điện thoại. Cần build lại cả Swift và Dart của bản 0.9; thay đổi iOS chưa được xác nhận trên máy thật trong môi trường Windows này.
+- iOS đặt taskbar và con trỏ trong một UIWindow trong suốt riêng, cao hơn cửa sổ nội dung/native fullscreen, không nhận chạm hay lấy quyền bàn phím của điện thoại. Cần build lại cả Swift và Dart của bản 0.10; thay đổi iOS chưa được xác nhận trên máy thật trong môi trường Windows này.
 - Con trỏ nhỏ 16×20, màu mint có mặt cười; có chỉnh kích thước trong Tùy chỉnh, lưu cùng phiên.
 - Di chuột chỉ gửi tọa độ qua bridge mới; không gửi lại toàn bộ ghi chú/cửa sổ hay dựng lại nội dung các app trong từng lần di chuyển. Bridge cũ tiếp tục dùng snapshot đầy đủ.
 - Tự kiểm tra màn hình lúc mở app và theo dõi cắm/rút trong lúc chạy.
@@ -72,7 +76,7 @@ flutter build apk --debug
 
 APK cài thử: `build/app/outputs/flutter-apk/app-debug.apk`. Đây là bản debug ký bằng khóa phát triển; cấu hình khóa phát hành riêng trước khi đưa lên cửa hàng.
 
-Bản ARM64 0.9: `artifacts/SideScreen-0.9.0-arm64.apk` (tạo cục bộ khi build, không lưu APK trong Git).
+Bản ARM64 0.10: `artifacts/SideScreen-0.10.0-arm64.apk` (tạo cục bộ khi build, không lưu APK trong Git).
 
 Trên Windows, có thể dùng `scripts\build_android.cmd debug` để tự tìm Java đi kèm Android Studio. Bỏ `debug` để build APK release dành cho Android ARM64; bản release này vẫn dùng khóa phát triển của dự án.
 

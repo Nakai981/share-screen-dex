@@ -7,6 +7,7 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 import '../../domain/workspace.dart';
+import '../../platform/external_browser_attachment.dart';
 import '../theme.dart';
 import 'browser_content.dart';
 import 'browser_navigation_policy.dart';
@@ -55,6 +56,12 @@ class _NativeSurfaceState extends State<_NativeSurface> {
   bool pageLoading = false;
   int? navigationSerial;
   Timer? loadTimer;
+  ExternalBrowserAttachment? externalHost;
+  bool initialized = false;
+  (bool, int)? hostPresentation;
+  bool get separateHost => usesExternalBrowserHost(
+    external: widget.workspace?.forwardAction != null,
+  );
   Timer? pointerTimer;
   Offset? previousPointer;
   bool sentPointer = false;
@@ -83,6 +90,16 @@ class _NativeSurfaceState extends State<_NativeSurface> {
   }
 
   Future<void> _initialize() async {
+    initialized = false;
+    final oldHost = externalHost;
+    externalHost = null;
+    hostPresentation = null;
+    await oldHost?.detach().catchError((_) {});
+    if (!mounted) return;
+    setState(() {
+      controller = null;
+      error = null;
+    });
     if (![
       TargetPlatform.android,
       TargetPlatform.iOS,
@@ -201,6 +218,20 @@ class _NativeSurfaceState extends State<_NativeSurface> {
         ),
       );
       if (mounted) {
+        if (separateHost) {
+          final platform = next.platform;
+          if (platform is! WebKitWebViewController) {
+            throw StateError('External browser requires WebKit');
+          }
+          final attachment = ExternalBrowserAttachment();
+          externalHost = attachment;
+          await attachment.attach(platform.webViewIdentifier);
+          if (!mounted) {
+            await attachment.detach();
+            return;
+          }
+        }
+        initialized = true;
         await _navigate();
         if (mounted) setState(() {});
       }
@@ -297,6 +328,9 @@ class _NativeSurfaceState extends State<_NativeSurface> {
 
   @override
   void dispose() {
+    unawaited(
+      externalHost?.detach().catchError((_) {}) ?? Future<void>.value(),
+    );
     loadTimer?.cancel();
     pointerTimer?.cancel();
     widget.workspace?.pointerChanges.removeListener(_pointerChanged);
@@ -306,6 +340,20 @@ class _NativeSurfaceState extends State<_NativeSurface> {
 
   @override
   Widget build(BuildContext context) {
+    final host = externalHost;
+    final presentation = (error == null, progress);
+    if (host != null && presentation != hostPresentation) {
+      hostPresentation = presentation;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && identical(host, externalHost)) {
+          unawaited(
+            host
+                .present(visible: presentation.$1, progress: presentation.$2)
+                .catchError((_) {}),
+          );
+        }
+      });
+    }
     final failure = error == null
         ? null
         : ColoredBox(
@@ -325,9 +373,8 @@ class _NativeSurfaceState extends State<_NativeSurface> {
                     Text(error!, textAlign: TextAlign.center),
                     const SizedBox(height: 16),
                     FilledButton.tonal(
-                      onPressed: () => unawaited(
-                        controller == null ? _initialize() : _navigate(),
-                      ),
+                      onPressed: () =>
+                          unawaited(!initialized ? _initialize() : _navigate()),
                       child: const Text('Thử lại'),
                     ),
                   ],
@@ -337,17 +384,24 @@ class _NativeSurfaceState extends State<_NativeSurface> {
           );
     return Stack(
       children: [
-        if (controller != null)
+        if (controller != null && !separateHost)
           Positioned.fill(
             child: IgnorePointer(
               ignoring: !widget.interactive || error != null,
               child: WebViewWidget(controller: controller!),
             ),
           ),
+        if (separateHost)
+          const Positioned.fill(
+            child: ColoredBox(
+              key: ValueKey('external-ios-browser-placeholder'),
+              color: Colors.white,
+            ),
+          ),
         if (failure != null) Positioned.fill(child: failure),
         if (controller == null && failure == null)
           const Center(child: CircularProgressIndicator()),
-        if (progress < 100)
+        if (progress < 100 && !separateHost)
           Positioned(
             top: 0,
             left: 0,

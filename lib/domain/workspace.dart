@@ -10,6 +10,7 @@ const windowTitleHeight = 36.0;
 const windowControlWidth = 36.0;
 const browserToolbarHeight = 44.0;
 const browserFooterHeight = 24.0;
+const browserNavigationErrorHeight = 36.0;
 const browserContentTop = 1 + windowTitleHeight + browserToolbarHeight;
 const browserContentBottom = 1 + browserFooterHeight;
 double browserExitWidth(double width) => width >= 600 ? 124 : 36;
@@ -25,6 +26,29 @@ Rect browserAddressRect(Rect window) => Rect.fromLTRB(
   browserExitRect(window).left - 6,
   window.top + 1 + windowTitleHeight + browserToolbarHeight - 4,
 );
+
+Rect browserViewportRect(Rect window, {bool navigationError = false}) =>
+    Rect.fromLTRB(
+      window.left + 1,
+      window.top +
+          browserContentTop +
+          (navigationError ? browserNavigationErrorHeight : 0),
+      window.right - 1,
+      window.bottom - browserContentBottom,
+    );
+
+/// Non-overlapping pieces left after a foreground window covers this region.
+List<Rect> subtractWindowRect(Rect region, Rect cover) {
+  final overlap = region.intersect(cover);
+  if (overlap.isEmpty) return [region];
+  return [
+    Rect.fromLTRB(region.left, region.top, region.right, overlap.top),
+    Rect.fromLTRB(region.left, overlap.bottom, region.right, region.bottom),
+    Rect.fromLTRB(region.left, overlap.top, overlap.left, overlap.bottom),
+    Rect.fromLTRB(overlap.right, overlap.top, region.right, overlap.bottom),
+  ].where((r) => !r.isEmpty).toList();
+}
+
 const desktopSafeInset = 8.0;
 const desktopBottom = 808.0;
 const desktopDockRect = Rect.fromLTWH(560, 820, 320, 72);
@@ -208,17 +232,39 @@ class WorkspaceController extends ChangeNotifier {
     final window = _find(DeskApp.browser);
     if (window == null || window.minimized) return null;
     final r = window.visibleRect;
-    final body = Rect.fromLTRB(
-      r.left + 1,
-      r.top + browserContentTop,
-      r.right - 1,
-      r.bottom - browserContentBottom,
-    );
+    final body = browserViewportRect(r, navigationError: browserError != null);
     if (!body.contains(cursor)) return null;
     return Offset(
       (cursor.dx - body.left) / body.width,
       (cursor.dy - body.top) / body.height,
     );
+  }
+
+  Map<String, Object?>? get browserViewportSnapshot {
+    final index = _windows.indexWhere(
+      (w) => w.app == DeskApp.browser && !w.minimized,
+    );
+    if (index < 0) return null;
+    final frame = browserViewportRect(
+      _windows[index].visibleRect,
+      navigationError: browserError != null,
+    );
+    var regions = <Rect>[frame];
+    for (final cover in _windows.skip(index + 1).where((w) => !w.minimized)) {
+      regions = regions
+          .expand((r) => subtractWindowRect(r, cover.visibleRect))
+          .toList();
+    }
+    Map<String, double> encode(Rect rect) => {
+      'x': rect.left,
+      'y': rect.top,
+      'width': rect.width,
+      'height': rect.height,
+    };
+    return {
+      'frame': encode(frame),
+      'visibleRegions': regions.map(encode).toList(),
+    };
   }
 
   void dispatch(Map<String, Object?> action) {
@@ -648,16 +694,19 @@ class WorkspaceController extends ChangeNotifier {
           browserNavigationSerial++;
         }
         browserAddressEditing = false;
-      } else if (local.dy >= browserContentTop &&
-          local.dy < r.height - browserContentBottom) {
+      } else if (browserViewportRect(
+        r,
+        navigationError: browserError != null,
+      ).contains(cursor)) {
         browserAddressEditing = false;
+        final body = browserViewportRect(
+          r,
+          navigationError: browserError != null,
+        );
         _browserCommand(
           'click',
-          x: ((local.dx - 1) / (r.width - 2)).clamp(0, 1),
-          y:
-              ((local.dy - browserContentTop) /
-                      (r.height - browserContentTop - browserContentBottom))
-                  .clamp(0, 1),
+          x: ((cursor.dx - body.left) / body.width).clamp(0, 1),
+          y: ((cursor.dy - body.top) / body.height).clamp(0, 1),
         );
       }
     }
@@ -723,6 +772,7 @@ class WorkspaceController extends ChangeNotifier {
     'browserIndex': _browserIndex,
     'browserReload': browserReload,
     'browserNavigationSerial': browserNavigationSerial,
+    'browserViewport': forStorage ? null : browserViewportSnapshot,
     'browserCommand': forStorage ? null : browserCommand,
     'browserError': browserError,
     'browserAddressEditing': !forStorage && browserAddressEditing,

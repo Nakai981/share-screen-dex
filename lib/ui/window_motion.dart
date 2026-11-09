@@ -17,6 +17,7 @@ class DesktopWindowMotion extends StatefulWidget {
     this.dockOrigin,
     this.occluded = false,
     this.occlusionRect,
+    this.animate = true,
   });
   final DeskApp app;
   final DeskWindow? window;
@@ -26,6 +27,7 @@ class DesktopWindowMotion extends StatefulWidget {
   final Offset? dockOrigin;
   final bool occluded;
   final Rect? occlusionRect;
+  final bool animate;
   @override
   State<DesktopWindowMotion> createState() => _DesktopWindowMotionState();
 }
@@ -66,7 +68,7 @@ class _DesktopWindowMotionState extends State<DesktopWindowMotion>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    reduced = MediaQuery.disableAnimationsOf(context);
+    reduced = MediaQuery.disableAnimationsOf(context) || !widget.animate;
     if (!initialized) {
       initialized = true;
       _update();

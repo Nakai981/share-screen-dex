@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../domain/workspace.dart';
+import '../platform/external_browser_attachment.dart';
 import 'theme.dart';
 import 'desktop_dock.dart';
 import 'window_motion.dart';
@@ -77,6 +78,11 @@ class DesktopView extends StatelessWidget {
                       DesktopWindowMotion(
                         key: ValueKey('window-motion-${app.name}'),
                         app: app,
+                        animate:
+                            app != DeskApp.browser ||
+                            !usesExternalBrowserHost(
+                              external: workspace.forwardAction != null,
+                            ),
                         occluded: workspace.isWindowOccluded(app),
                         occlusionRect:
                             workspace.activeApp == DeskApp.browser &&

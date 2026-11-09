@@ -1,6 +1,7 @@
 import Flutter
 import UIKit
 import WebKit
+import webview_flutter_wkwebview
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -30,6 +31,8 @@ final class ExternalDisplayCoordinator {
   private var externalEngine: FlutterEngine?
   private weak var externalScene: UIWindowScene?
   private weak var desktopOverlay: ExternalDesktopOverlay?
+  private weak var browserHost: ExternalBrowserHost?
+  private var browserRegistrar: FlutterPluginRegistrar?
   private let browserViews = NSHashTable<WKWebView>.weakObjects()
   private var state: [String: Any]?
   private var accessoryRegistration: AnyObject?
@@ -84,6 +87,7 @@ final class ExternalDisplayCoordinator {
     let engine = engines.makeEngine(withEntrypoint: "externalDisplayMain", libraryURI: nil)
     externalEngine = engine
     GeneratedPluginRegistrant.register(with: engine)
+    browserRegistrar = engine.registrar(forPlugin: "SideScreenExternalBrowserHost")
     let channel = FlutterMethodChannel(name: channelName, binaryMessenger: engine.binaryMessenger)
     secondary = channel
     bind(channel, external: true)
@@ -93,6 +97,9 @@ final class ExternalDisplayCoordinator {
   }
 
   func disconnect() {
+    browserHost?.detach()
+    browserHost = nil
+    browserRegistrar = nil
     browserViews.removeAllObjects()
     desktopOverlay = nil
     secondary?.setMethodCallHandler(nil)
@@ -110,6 +117,11 @@ final class ExternalDisplayCoordinator {
     notifyStatus()
   }
 
+  func attachBrowserHost(_ host: ExternalBrowserHost) {
+    browserHost = host
+    host.apply(state ?? [:])
+  }
+
   private func bind(_ channel: FlutterMethodChannel, external: Bool) {
     channel.setMethodCallHandler { [weak self] call, result in
       guard let self = self else { result(nil); return }
@@ -118,6 +130,33 @@ final class ExternalDisplayCoordinator {
         result(["status": self.status(), "state": self.state as Any? ?? NSNull()])
       case "refresh":
         self.notifyStatus()
+        result(nil)
+      case "attachExternalBrowser":
+        guard external, let args = call.arguments as? [String: Any],
+              let identifier = args["identifier"] as? NSNumber,
+              let registrar = self.browserRegistrar, let host = self.browserHost,
+              let webView = FWFWebViewFlutterWKWebViewExternalAPI.webView(
+                forIdentifier: identifier.int64Value, withPluginRegistrar: registrar) else {
+          result(FlutterError(code: "external_browser_unavailable", message: "External browser host is not ready", details: nil))
+          return
+        }
+        self.browserViews.add(webView)
+        host.attach(webView, identifier: identifier.int64Value)
+        host.apply(self.state ?? [:])
+        result(nil)
+      case "updateExternalBrowser":
+        if external, let args = call.arguments as? [String: Any],
+           let identifier = args["identifier"] as? NSNumber {
+          self.browserHost?.present(identifier: identifier.int64Value,
+                                    visible: args["visible"] as? Bool == true,
+                                    progress: (args["progress"] as? NSNumber)?.intValue ?? 100)
+        }
+        result(nil)
+      case "detachExternalBrowser":
+        if external, let args = call.arguments as? [String: Any],
+           let identifier = args["identifier"] as? NSNumber {
+          self.browserHost?.detach(identifier: identifier.int64Value)
+        }
         result(nil)
       case "publishState":
         if !external, let next = call.arguments as? [String: Any] {
@@ -132,6 +171,7 @@ final class ExternalDisplayCoordinator {
           }
           self.state = next
           self.desktopOverlay?.apply(next)
+          self.browserHost?.apply(next)
           self.secondary?.invokeMethod("stateChanged", arguments: next)
         }
         result(nil)

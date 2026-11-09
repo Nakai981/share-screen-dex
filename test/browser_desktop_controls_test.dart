@@ -96,6 +96,19 @@ void main() {
       await tester.tap(exit);
       await tester.pump();
       expect(workspace.browserCommandSerial, serial + 1);
+      expect(
+        tester.getRect(find.byKey(const ValueKey('browser-viewport'))),
+        browserViewportRect(rect),
+      );
+      workspace.dispatch({
+        'type': 'browserNavigate',
+        'url': 'javascript:blocked()',
+      });
+      await tester.pumpAndSettle();
+      expect(
+        tester.getRect(find.byKey(const ValueKey('browser-viewport'))),
+        browserViewportRect(rect, navigationError: true),
+      );
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },

@@ -1,9 +1,73 @@
 import Flutter
 import UIKit
+import WebKit
 import XCTest
 @testable import Runner
 
 class RunnerTests: XCTestCase {
+
+  func testExternalBrowserUsesFullMonitorPointsInsteadOfPhonePixelRatio() async {
+    await MainActor.run {
+      for size in [CGSize(width: 1280, height: 720), CGSize(width: 1920, height: 1080), CGSize(width: 2560, height: 1600), CGSize(width: 3840, height: 2160)] {
+        let host = ExternalBrowserHost(frame: CGRect(origin: .zero, size: size))
+        let view = WKWebView(frame: .zero)
+        let width = 900 * size.width / size.height
+        let rect: [String: Any] = ["x": 17, "y": 117, "width": width - 34, "height": 600]
+        host.attach(view, identifier: 7)
+        host.apply(["displayAspect": size.width / size.height, "fullScreen": true,
+                    "browserViewport": ["frame": rect, "visibleRegions": [rect]]])
+        XCTAssertFalse(host.isHidden)
+        XCTAssertTrue(view.superview === host.content)
+        XCTAssertEqual(host.content.frame.minX, 17 * size.height / 900, accuracy: 0.01)
+        XCTAssertEqual(host.content.frame.minY, 117 * size.height / 900, accuracy: 0.01)
+        XCTAssertEqual(host.content.frame.width, (width - 34) * size.height / 900, accuracy: 0.01)
+        XCTAssertGreaterThan(view.bounds.width, size.width * 0.9)
+        XCTAssertEqual(view.frame, host.content.bounds)
+      }
+    }
+  }
+
+  func testExternalBrowserVisibilityMaskAndStaleDetach() async {
+    await MainActor.run {
+      let host = ExternalBrowserHost(frame: CGRect(x: 0, y: 0, width: 1600, height: 900))
+      let first = WKWebView(frame: .zero)
+      let second = WKWebView(frame: .zero)
+      let rect: [String: Any] = ["x": 17, "y": 117, "width": 1566, "height": 600]
+      let half: [String: Any] = ["x": 17, "y": 117, "width": 700, "height": 600]
+      host.attach(first, identifier: 7)
+      host.attach(second, identifier: 9)
+      host.apply(["displayAspect": 16.0 / 9.0, "browserViewport": ["frame": rect, "visibleRegions": [half]]])
+      host.detach(identifier: 7)
+      XCTAssertTrue(host.webView === second)
+      XCTAssertNil(first.superview)
+      let mask = host.content.layer.mask as! CAShapeLayer
+      XCTAssertTrue(mask.path!.contains(CGPoint(x: 100, y: 100)))
+      XCTAssertFalse(mask.path!.contains(CGPoint(x: 1000, y: 100)))
+      host.present(identifier: 9, visible: false, progress: 30)
+      XCTAssertTrue(host.isHidden)
+      host.present(identifier: 9, visible: true, progress: 100)
+      XCTAssertFalse(host.isHidden)
+      host.apply(["browserViewport": ["frame": rect, "visibleRegions": []]])
+      XCTAssertTrue(host.isHidden)
+      host.detach(identifier: 9)
+      XCTAssertNil(second.superview)
+    }
+  }
+
+  func testExternalBrowserWindowDoesNotOwnInputOrCoverChrome() async {
+    await MainActor.run {
+      let browser = ExternalBrowserWindow(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+      browser.installBrowserHost()
+      let chrome = ExternalDesktopChromeWindow(frame: browser.frame)
+      chrome.installDesktopOverlay()
+      XCTAssertEqual(browser.browserHost.frame, browser.bounds)
+      XCTAssertGreaterThan(browser.windowLevel.rawValue, UIWindow.Level.normal.rawValue)
+      XCTAssertLessThan(browser.windowLevel.rawValue, chrome.windowLevel.rawValue)
+      XCTAssertFalse(browser.isUserInteractionEnabled)
+      XCTAssertFalse(browser.isKeyWindow)
+      XCTAssertNil(browser.hitTest(CGPoint(x: 100, y: 100), with: nil))
+    }
+  }
 
   func testWindowControlsFollowNotesAndDisappearWhenAllWindowsClose() async {
     await MainActor.run {

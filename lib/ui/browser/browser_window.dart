@@ -109,15 +109,19 @@ class BrowserWindow extends StatelessWidget {
           intercepting: kIsWeb || workspace.forwardAction == null,
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(10),
+            height: browserNavigationErrorHeight,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             color: const Color(0xFFFFF2E7),
             child: Text(
               workspace.browserError!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 11, color: Color(0xFF87633C)),
             ),
           ),
         ),
       Expanded(
+        key: const ValueKey('browser-viewport'),
         child: workspace.browserUrl == browserHome
             ? _BrowserHome(workspace: workspace)
             : kIsWeb &&
