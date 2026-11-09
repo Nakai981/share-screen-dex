@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -75,6 +74,8 @@ class DesktopView extends StatelessWidget {
                         key: ValueKey('window-motion-${app.name}'),
                         app: app,
                         canvasSize: workspace.canvasSize,
+                        layoutEpoch: workspace.layoutEpoch,
+                        dockOrigin: workspace.dockItem(dockIndex(app)).center,
                         window: workspace.windows
                             .where((w) => w.app == app)
                             .firstOrNull,
@@ -673,45 +674,50 @@ class _DesktopPreviewPageState extends State<DesktopPreviewPage> {
       autofocus: true,
       child: Scaffold(
         backgroundColor: const Color(0xFF173A46),
-        body: Stack(
-          children: [
-            Positioned.fill(
-              child: DesktopViewport(
-                workspace: widget.workspace,
-                reportSize: widget.adaptToViewport,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                child: Row(
+                  children: [
+                    FilledButton.tonalIcon(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.arrow_back_rounded, size: 17),
+                      label: const Text('Về điều khiển'),
+                    ),
+                    const Spacer(),
+                    FilledButton.tonalIcon(
+                      key: const ValueKey('preview-fullscreen'),
+                      onPressed: () async {
+                        final entered = await enterFullScreen();
+                        if (!entered && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Trình duyệt không cho phép toàn màn hình. Hãy thử phím F11.',
+                              ),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.fullscreen_rounded, size: 17),
+                      label: const Text('Toàn màn hình'),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Positioned(
-              left: 12,
-              top: math.max(MediaQuery.paddingOf(context).top, 8) + 44,
-              child: FilledButton.tonalIcon(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(Icons.arrow_back_rounded, size: 17),
-                label: const Text('Về điều khiển'),
+              Expanded(
+                child: DesktopViewport(
+                  workspace: widget.workspace,
+                  reportSize: widget.adaptToViewport,
+                ),
               ),
-            ),
-            Positioned(
-              right: 12,
-              top: math.max(MediaQuery.paddingOf(context).top, 8) + 44,
-              child: FilledButton.tonalIcon(
-                key: const ValueKey('preview-fullscreen'),
-                onPressed: () async {
-                  final entered = await enterFullScreen();
-                  if (!entered && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Trình duyệt không cho phép toàn màn hình. Hãy thử phím F11.',
-                        ),
-                      ),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.fullscreen_rounded, size: 17),
-                label: const Text('Toàn màn hình'),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     ),

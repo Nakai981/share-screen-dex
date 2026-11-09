@@ -174,9 +174,11 @@ class BrowserAddressField extends StatefulWidget {
     super.key,
     required this.workspace,
     required this.id,
+    this.focusNode,
   });
   final WorkspaceController workspace;
   final String id;
+  final FocusNode? focusNode;
   @override
   State<BrowserAddressField> createState() => _BrowserAddressFieldState();
 }
@@ -215,6 +217,7 @@ class _BrowserAddressFieldState extends State<BrowserAddressField> {
   Widget build(BuildContext context) => TextField(
     key: ValueKey('browser-address-${widget.id}'),
     controller: text,
+    focusNode: widget.focusNode,
     keyboardType: TextInputType.text,
     hintLocales: widget.workspace.keyboardLanguage.hintLocales,
     textInputAction: TextInputAction.go,

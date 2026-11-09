@@ -10,9 +10,13 @@ The responsive layouts serve the same session: stacked controls on a phone; a co
 
 Version 0.2 adds a real browser window with a compact address toolbar and a bundled interactive HTML demo. Native devices use the system WebView; web preview uses an iframe and offers an external-tab action for sites that block embedding.
 
-Version 0.3 window entrance takes 300 ms from the app's dock icon. Closing reverses over 220 ms; maximize/restore interpolates transforms over 280 ms. Content is laid out at its destination once, reused as the AnimatedBuilder child, and isolated by a RepaintBoundary. Direct dragging stays immediate. Minimized windows keep their widget subtree so browser and address drafts survive. Reduced-motion preferences disable these transitions.
+Version 0.4 uses critically damped springs with perceptual durations of 360 ms for opening, 220 ms for closing and 380 ms for arrangement/maximize. Fresh windows appear near their final scale; minimizing/restoring follows a scale trajectory to the Dock. This is macOS-inspired Flutter motion. Content is laid out at its destination once, reused as the AnimatedBuilder child, and isolated by a RepaintBoundary. Direct dragging stays immediate. Minimized windows keep their widget subtree so browser and address drafts survive. Reduced-motion preferences disable these transitions.
 
 The dock magnifies and lifts the hovered icon, gently moves neighboring icons, and shows a floating label. Opening an app triggers a short bounce. The phone's virtual cursor uses the same hit regions as the physical mouse.
+
+The taskbar is now a full-width surface inset 32 logical points from the bottom by default. The bottom inset is adjustable between 16 and 96; phone-side recovery uses at least 64. Maximized and arranged windows reserve this area. New apps automatically tile without overlap; on very narrow displays older apps minimize when they cannot fit at a readable minimum size. Moving/resizing deliberately switches to free arrangement. Old session layouts migrate to tiles once.
+
+The phone's hardware-control page renders a lightweight window map, rather than duplicating WebViews. Mouse/AssistiveTouch positions map directly to the shared desktop coordinates. The primary scene retains keyboard focus and provides normal TextFields for system IME input, with application shortcuts around them. iPhone external scenes remain noninteractive; no direct external-scene mouse support or physical-device validation is claimed.
 
 The desktop now expands into the full constraints, including when a monitor is larger than the logical canvas. The default layout keeps a logical height of 900 and adapts its width to the external viewport, centering the dock and maintaining consistent pointer hit regions. The fixed 16:10 mode remains optional. Phone rotation does not report an external viewport. iOS creates its external UIWindow in the scene's own coordinate space with overscan compensation disabled.
 

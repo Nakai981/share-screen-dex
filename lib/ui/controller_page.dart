@@ -7,6 +7,7 @@ import 'desktop.dart';
 import 'browser/browser_window.dart';
 import 'theme.dart';
 import 'keyboard_preferences.dart';
+import 'hardware_controller_page.dart';
 
 class ControllerPage extends StatefulWidget {
   const ControllerPage({super.key, required this.session});
@@ -177,6 +178,35 @@ class _ControllerPageState extends State<ControllerPage> {
         status: widget.session.status,
         ready: widget.session.ready,
         onRefresh: () => widget.session.bridge.refresh(),
+      ),
+      const SizedBox(height: 12),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          OutlinedButton.icon(
+            key: const ValueKey('open-hardware-controller'),
+            icon: const Icon(Icons.keyboard_alt_outlined, size: 17),
+            label: const Text(
+              'Chuột & bàn phím',
+              style: TextStyle(fontSize: 11),
+            ),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => HardwareControllerPage(workspace: workspace),
+              ),
+            ),
+          ),
+          TextButton.icon(
+            key: const ValueKey('recover-desktop'),
+            icon: const Icon(Icons.restore_rounded, size: 17),
+            label: const Text(
+              'Khôi phục desktop',
+              style: TextStyle(fontSize: 11),
+            ),
+            onPressed: () => workspace.dispatch({'type': 'recoverDesktop'}),
+          ),
+        ],
       ),
       if (showPreview && !widget.session.status.presenting) ...[
         const SizedBox(height: 24),
@@ -683,6 +713,26 @@ class _ControllerPageState extends State<ControllerPage> {
               ),
               const SizedBox(height: 12),
               KeyboardPreferences(workspace: workspace),
+              const SizedBox(height: 16),
+              Text(
+                'Viền an toàn dưới màn hình: ${workspace.safeInset.round()}',
+                style: const TextStyle(fontSize: 12),
+              ),
+              const Text(
+                'Tăng nếu taskbar bị màn hình ngoài cắt ở mép dưới.',
+                style: TextStyle(fontSize: 10, color: AppColors.muted),
+              ),
+              Slider(
+                key: const ValueKey('display-safe-inset'),
+                value: workspace.safeInset,
+                min: 16,
+                max: 96,
+                divisions: 10,
+                onChanged: (value) {
+                  workspace.dispatch({'type': 'safeInset', 'value': value});
+                  updateSheet(() {});
+                },
+              ),
               const SizedBox(height: 12),
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -706,15 +756,15 @@ class _ControllerPageState extends State<ControllerPage> {
                   style: TextStyle(fontSize: 11, color: AppColors.muted),
                 ),
                 onTap: () {
-                  workspace.dispatch({'type': 'reset'});
+                  workspace.dispatch({'type': 'arrange'});
                   Navigator.pop(context);
                 },
               ),
               const SizedBox(height: 12),
               Text(
                 widget.session.status.nativeAvailable
-                    ? 'SideScreen 0.3 · Màn hình có dây'
-                    : 'SideScreen 0.3 · Chế độ xem thử',
+                    ? 'SideScreen 0.4 · Màn hình có dây'
+                    : 'SideScreen 0.4 · Chế độ xem thử',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 10, color: AppColors.muted),
               ),

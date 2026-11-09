@@ -139,10 +139,11 @@ void main() {
       });
       workspace.dispatch({'type': 'click'});
       expect(workspace.activeApp, DeskApp.browser);
+      final body = workspace.windows.last.visibleRect;
       workspace.dispatch({
         'type': 'pointerMove',
-        'dx': 400 - workspace.cursor.dx,
-        'dy': 350 - workspace.cursor.dy,
+        'dx': body.center.dx - workspace.cursor.dx,
+        'dy': body.top + 200 - workspace.cursor.dy,
       });
       workspace.dispatch({'type': 'click'});
       expect(workspace.browserCommand!['type'], 'click');

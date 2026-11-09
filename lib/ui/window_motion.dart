@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 
 import '../domain/workspace.dart';
+import 'desktop_motion.dart';
 
 /// Keeps the outgoing content alive until its close/minimize animation ends.
 /// This state belongs to each renderer, never to the shared session clock.
@@ -11,11 +13,15 @@ class DesktopWindowMotion extends StatefulWidget {
     required this.window,
     required this.builder,
     this.canvasSize = desktopSize,
+    this.layoutEpoch = 0,
+    this.dockOrigin,
   });
   final DeskApp app;
   final DeskWindow? window;
   final Widget Function(DeskWindow window) builder;
   final Size canvasSize;
+  final int layoutEpoch;
+  final Offset? dockOrigin;
   @override
   State<DesktopWindowMotion> createState() => _DesktopWindowMotionState();
 }
@@ -38,6 +44,7 @@ class _DesktopWindowMotionState extends State<DesktopWindowMotion>
   bool dockTransition = true;
   bool reduced = false;
   bool initialized = false;
+  int lastLayoutEpoch = 0;
 
   DeskWindow _copy(DeskWindow w) => DeskWindow(
     app: w.app,
@@ -45,9 +52,10 @@ class _DesktopWindowMotionState extends State<DesktopWindowMotion>
     minimized: w.minimized,
     maximized: w.maximized,
     canvasWidth: w.canvasWidth,
+    workBottom: w.workBottom,
   );
   Rect get currentRect =>
-      geometryTween?.transform(Curves.easeOutCubic.transform(geometry.value)) ??
+      geometryTween?.transform(geometry.value) ??
       retained?.visibleRect ??
       Rect.zero;
 
@@ -73,15 +81,23 @@ class _DesktopWindowMotionState extends State<DesktopWindowMotion>
 
   void _update() {
     final next = widget.window;
+    final wasMinimized = retained?.minimized == true;
     final nextShown = next != null && !next.minimized;
     if (next != null) {
       final before = currentRect;
       final maximizeChanged =
           retained != null && retained!.maximized != next.maximized;
       retained = _copy(next);
-      if (maximizeChanged && shown && nextShown && !reduced) {
+      if ((maximizeChanged || lastLayoutEpoch != widget.layoutEpoch) &&
+          before != next.visibleRect &&
+          shown &&
+          nextShown &&
+          !reduced) {
         geometryTween = RectTween(begin: before, end: next.visibleRect);
-        geometry.forward(from: 0);
+        geometry.value = 0;
+        geometry.animateWith(
+          SpringSimulation(DesktopMotion.layout, 0, 1, 0, snapToEnd: true),
+        );
       } else if (geometryTween?.end != next.visibleRect) {
         geometryTween = RectTween(
           begin: next.visibleRect,
@@ -90,15 +106,34 @@ class _DesktopWindowMotionState extends State<DesktopWindowMotion>
         geometry.value = 1;
       }
     }
+    lastLayoutEpoch = widget.layoutEpoch;
     if (nextShown != shown) {
-      dockTransition = nextShown || next?.minimized == true;
+      // Fresh apps enter close to their final size. Restore/minimize uses the
+      // classic dock scale trajectory; a close fades in place.
+      dockTransition = nextShown ? wasMinimized : next?.minimized == true;
       shown = nextShown;
       if (reduced) {
         visibility.value = shown ? 1 : 0;
       } else if (shown) {
-        visibility.forward();
+        visibility.animateWith(
+          SpringSimulation(
+            DesktopMotion.opening,
+            visibility.value,
+            1,
+            visibility.velocity,
+            snapToEnd: true,
+          ),
+        );
       } else {
-        visibility.reverse();
+        visibility.animateBackWith(
+          SpringSimulation(
+            DesktopMotion.closing,
+            visibility.value,
+            0,
+            visibility.velocity,
+            snapToEnd: true,
+          ),
+        );
       }
     }
   }
@@ -122,13 +157,12 @@ class _DesktopWindowMotionState extends State<DesktopWindowMotion>
           (visibility.isDismissed && !shown && widget.window == null)) {
         return const SizedBox.shrink();
       }
-      final progress = Curves.easeOutCubic.transform(visibility.value);
+      final progress = visibility.value.clamp(0.0, 1.0);
       final rect = currentRect;
       final target = retained!.visibleRect;
-      final origin = dockItemRect(
-        dockIndex(widget.app),
-        widget.canvasSize,
-      ).center;
+      final origin =
+          widget.dockOrigin ??
+          dockItemRect(dockIndex(widget.app), widget.canvasSize).center;
       final offset = dockTransition
           ? (origin - rect.center) * (1 - progress)
           : Offset(0, 16 * (1 - progress));

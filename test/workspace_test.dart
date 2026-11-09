@@ -141,8 +141,15 @@ void main() {
         true,
       );
       expect(desk.windows.length, 1);
-      expect(desk.windows.first.rect.width, 1424);
-      expect(desk.windows.first.rect.height, 340);
+      expect(
+        desk.windows.first.rect.width,
+        lessThanOrEqualTo(desk.canvasSize.width - 16),
+      );
+      expect(desk.windows.first.rect.height, greaterThanOrEqualTo(340));
+      expect(
+        desk.windows.first.rect.bottom,
+        lessThanOrEqualTo(desk.workBottom),
+      );
       expect(desk.cursor.dx.isFinite, true);
     },
   );

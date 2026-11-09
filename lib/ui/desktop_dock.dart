@@ -39,6 +39,9 @@ class _DesktopDockState extends State<DesktopDock> {
       (null, 'Hình nền', Icons.palette_outlined, const Color(0xFFB57960)),
     ];
     return Container(
+      key: const ValueKey('desktop-taskbar'),
+      width: workspace.dockRect.width,
+      height: workspace.dockRect.height,
       padding: const EdgeInsets.all(7),
       decoration: BoxDecoration(
         color: const Color(0xEDF5F8F9),
@@ -52,31 +55,72 @@ class _DesktopDockState extends State<DesktopDock> {
           ),
         ],
       ),
-      child: Row(
+      child: Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
         children: [
-          for (var index = 0; index < items.length; index++) ...[
-            if (index > 0) const SizedBox(width: 8),
-            _DockTile(
-              key: ValueKey('dock-${items[index].$1?.name ?? 'wallpaper'}'),
-              label: items[index].$2,
-              icon: items[index].$3,
-              color: items[index].$4,
-              hover: hover == null
-                  ? 0
-                  : math.max(0, 1 - (index - hover).abs() * .72),
-              selected: hover == index,
-              active: workspace.activeApp == items[index].$1,
-              running: workspace.windows.any((w) => w.app == items[index].$1),
-              launches: workspace.launches[items[index].$1] ?? 0,
-              onEnter: () => setState(() => mouseHover = index),
-              onExit: () => setState(() => mouseHover = null),
-              onTap: () => workspace.dispatch(
-                items[index].$1 == null
-                    ? {'type': 'wallpaper'}
-                    : {'type': 'open', 'app': items[index].$1!.name},
+          if (workspace.canvasSize.width > 1000) ...[
+            const Positioned(
+              left: 16,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.space_dashboard_rounded,
+                    size: 22,
+                    color: AppColors.ink,
+                  ),
+                  SizedBox(width: 10),
+                  Text(
+                    'SideScreen',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              right: 12,
+              child: IconButton(
+                tooltip: 'Sắp xếp cửa sổ cạnh nhau',
+                onPressed: () => workspace.dispatch({'type': 'arrange'}),
+                icon: const Icon(Icons.view_column_outlined, size: 23),
               ),
             ),
           ],
+          SizedBox(
+            width: 320,
+            height: 70,
+            child: Row(
+              children: [
+                for (var index = 0; index < items.length; index++) ...[
+                  if (index > 0) const SizedBox(width: 8),
+                  _DockTile(
+                    key: ValueKey(
+                      'dock-${items[index].$1?.name ?? 'wallpaper'}',
+                    ),
+                    label: items[index].$2,
+                    icon: items[index].$3,
+                    color: items[index].$4,
+                    hover: hover == null
+                        ? 0
+                        : math.max(0, 1 - (index - hover).abs() * .72),
+                    selected: hover == index,
+                    active: workspace.activeApp == items[index].$1,
+                    running: workspace.windows.any(
+                      (w) => w.app == items[index].$1,
+                    ),
+                    launches: workspace.launches[items[index].$1] ?? 0,
+                    onEnter: () => setState(() => mouseHover = index),
+                    onExit: () => setState(() => mouseHover = null),
+                    onTap: () => workspace.dispatch(
+                      items[index].$1 == null
+                          ? {'type': 'wallpaper'}
+                          : {'type': 'open', 'app': items[index].$1!.name},
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
         ],
       ),
     );

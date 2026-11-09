@@ -2,14 +2,17 @@
 
 Ứng dụng Flutter cho Android/iPhone: khi mở app và có màn hình ngoài được hệ điều hành cấp qua USB-C/HDMI, app mở một không gian làm việc riêng trên màn hình đó. Điện thoại là bàn điều khiển.
 
-## Bản 0.3 đã có
+## Bản 0.4 đã có
 
 - Hai giao diện độc lập: điều khiển trên điện thoại và desktop trên màn hình ngoài.
 - Tự kiểm tra màn hình lúc mở app và theo dõi cắm/rút trong lúc chạy.
 - Ba ứng dụng trong desktop: **Ghi chú**, **Trình duyệt** và **Bắt đầu**.
 - Kéo, đổi kích thước, thu nhỏ, phóng to, đóng và mở lại cửa sổ.
-- Hiệu ứng mở/thu nhỏ từ dock, đóng mờ dần, phóng to/khôi phục mượt; giữ nội dung khi thu nhỏ. Tôn trọng cài đặt giảm chuyển động của hệ thống.
-- Taskbar có phóng lớn, nâng biểu tượng, nhãn khi hover bằng chuột hoặc con trỏ điện thoại; biểu tượng nảy khi mở ứng dụng.
+- Chuyển động spring lấy cảm hứng macOS: mở cửa sổ nhẹ từ gần kích thước thật, thu nhỏ/khôi phục về Dock, xếp cạnh nhau và phóng to bằng transform; giữ nội dung khi thu nhỏ. Tôn trọng cài đặt giảm chuyển động của hệ thống.
+- Taskbar trải ngang, nằm cao hơn mép dưới 32 điểm logic mặc định, luôn trên các cửa sổ. Có phóng lớn biểu tượng và nhãn khi hover; nút xếp cửa sổ ở bên phải.
+- Mặc định xếp cửa sổ mới cạnh nhau; phiên cũ được bố trí lại để tránh chồng cửa sổ. Khi kéo/resize thủ công, chuyển sang bố cục tự do; bấm Sắp xếp cửa sổ để quay lại.
+- Nút **Khôi phục desktop** trên điện thoại nâng taskbar vào sâu hơn và xếp lại cửa sổ. Cài đặt có **Viền an toàn dưới màn hình** từ 16–96 điểm logic cho màn hình/cáp bị cắt mép.
+- Chế độ **Chuột & bàn phím** trên điện thoại: vùng điều khiển tuyệt đối ánh xạ sang desktop, nhận hover/click/drag/cuộn khi hệ điều hành gửi sự kiện; nhập ghi chú và địa chỉ bằng bàn phím vật lý, có phím tắt.
 - Trình duyệt có thanh địa chỉ/tìm kiếm, lùi/tiến, tải lại, trang chủ và trang HTML thử tương tác không cần mạng. Android/iOS dùng WebView; bản web dùng iframe.
 - Tìm kiếm mặc định bằng Google. Google trên bản web có nút mở tab riêng, tránh khung nhúng bị chặn; trên app dùng WebView.
 - YouTube trên bản web: trang chủ/tìm kiếm/kênh mở bằng nút tab riêng; liên kết video watch/youtu.be/shorts/live dùng trình phát nhúng chính thức, giữ mốc thời gian. Video có hạn chế nhúng vẫn cần mở trực tiếp trên YouTube. Luồng WebView của Android/iOS giữ nguyên.
@@ -53,7 +56,7 @@ flutter build apk --debug
 
 APK cài thử: `build/app/outputs/flutter-apk/app-debug.apk`. Đây là bản debug ký bằng khóa phát triển; cấu hình khóa phát hành riêng trước khi đưa lên cửa hàng.
 
-Bản ARM64 0.3: `artifacts/SideScreen-0.3.0-arm64.apk`.
+Bản ARM64 0.4: `artifacts/SideScreen-0.4.0-arm64.apk` (tạo cục bộ khi build, không lưu APK trong Git).
 
 Trên Windows, có thể dùng `scripts\build_android.cmd debug` để tự tìm Java đi kèm Android Studio. Bỏ `debug` để build APK release dành cho Android ARM64; bản release này vẫn dùng khóa phát triển của dự án.
 
@@ -86,6 +89,15 @@ Chọn Team trong Signing & Capabilities của Runner, chọn iPhone thật rồ
 - Cần đúng mẫu iPhone, cáp và adapter hỗ trợ video; chỉ có cổng USB-C là chưa đủ.
 - Mã iOS chưa được compile/chạy trên Mac trong môi trường phát triển Windows hiện tại.
 
+### Chuột và bàn phím Bluetooth trên iPhone
+
+1. Bật **Cài đặt → Trợ năng → Cảm ứng → AssistiveTouch**; ghép chuột trong **Thiết bị → Thiết bị Bluetooth** theo [hướng dẫn Apple](https://support.apple.com/en-ie/111775). Ghép bàn phím trong Bluetooth của iPhone.
+2. Mở SideScreen trên điện thoại → **Chuột & bàn phím**. Bấm/kéo trên sơ đồ cửa sổ để đưa thao tác sang desktop ngoài. Sơ đồ dùng cùng vị trí cửa sổ và taskbar với màn hình ngoài.
+3. Chọn Ghi chú rồi nhập ở ô bên dưới bằng bàn phím Bluetooth. Với trình duyệt, dùng ô địa chỉ hoặc ô gửi chữ vào trường đã chọn trên trang.
+4. Phím tắt Ctrl/⌘ + 1/2/3 mở Ghi chú/Trình duyệt/Bắt đầu; Ctrl/⌘ + L chọn địa chỉ; Ctrl/⌘ + W đóng; Ctrl/⌘ + M thu nhỏ; Ctrl/⌘ + Shift + T xếp cạnh nhau; Alt + Tab đổi cửa sổ.
+
+iPhone cấp external scene không tương tác trực tiếp: thiết bị nhập vẫn được nhận trên điện thoại và chuyển thao tác qua bridge. AssistiveTouch có thể gửi thao tác như cảm ứng, không gửi hover/raw mouse; khi đó dùng bấm/giữ-kéo trên sơ đồ. Bản này không biến iPhone thành hệ điều hành desktop với con trỏ Bluetooth tự do trên màn hình ngoài. Chưa kiểm tra với chuột/bàn phím Bluetooth thật và iPhone 15 trong môi trường này.
+
 ## Kiến trúc
 
 ```text
@@ -114,6 +126,8 @@ Flutter engine phụ không sửa một bản dữ liệu riêng: thao tác từ
 | `lib/ui/desktop_dock.dart` | Taskbar, hover bằng chuột/con trỏ, nhãn và hiệu ứng mở app |
 | `lib/ui/desktop_viewport.dart` | Báo kích thước thực của vùng hiển thị, độc lập với chiều xoay điện thoại |
 | `lib/ui/keyboard_preferences.dart` | Ngôn ngữ nhập và đồng bộ văn bản giữ trạng thái IME |
+| `lib/ui/hardware_controller_page.dart` | Điều khiển bằng chuột/AssistiveTouch, bàn phím vật lý và phím tắt trên điện thoại |
+| `lib/ui/desktop_motion.dart` | Spring có damping cho mở/đóng và bố trí cửa sổ |
 | `lib/ui/browser/` | WebView native, iframe web, điều khiển trên điện thoại và HTML demo |
 | `android/app/src/main/kotlin/dev/sidescreen/side_screen/ExternalDisplayCoordinator.kt` | `DisplayManager`, `Presentation`, tạo/hủy engine phụ, SharedPreferences |
 | `ios/Runner/AppDelegate.swift` | Bridge, scene accessory, engine phụ, UserDefaults |
@@ -156,7 +170,7 @@ flutter build web --release --no-web-resources-cdn
 flutter build apk --debug
 ```
 
-37 kiểm thử bao gồm giới hạn di chuyển/resize, kéo qua touchpad, hit testing của dock/nút cửa sổ, chuyển động đóng/mở/phóng to, không dựng lại nội dung trong từng frame animation, hover chuột/con trỏ ảo, giảm chuyển động, giữ ô địa chỉ khi thu nhỏ, tìm Google, định tuyến liên kết YouTube và kiểm tra địa chỉ, không lưu lệnh nhập chữ vào trang, khôi phục snapshot cũ, mô hình engine phụ, giữ vùng ghép dấu tiếng Việt, gợi ý ngôn ngữ, phủ kín màn hình 1920×1080/2560×1600, bố cục ultrawide và bố cục điện thoại 320/390/1024/1440 px.
+44 kiểm thử bao gồm giới hạn di chuyển/resize, kéo qua touchpad, hit testing của dock/nút cửa sổ, chuyển động đóng/mở/phóng to, không dựng lại nội dung trong từng frame animation, hover chuột/con trỏ ảo, giảm chuyển động, giữ ô địa chỉ khi thu nhỏ, tìm Google, định tuyến liên kết YouTube và kiểm tra địa chỉ, không lưu lệnh nhập chữ vào trang, khôi phục snapshot cũ, mô hình engine phụ, giữ vùng ghép dấu tiếng Việt, gợi ý ngôn ngữ, phủ kín màn hình 1920×1080/2560×1600, bố cục ultrawide và bố cục điện thoại 320/390/1024/1440 px.
 
 Kiểm tra vòng đời native trên một emulator dùng riêng cho kiểm thử, sau khi build APK debug:
 
