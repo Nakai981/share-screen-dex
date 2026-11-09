@@ -15,6 +15,8 @@ class DesktopWindowMotion extends StatefulWidget {
     this.canvasSize = desktopSize,
     this.layoutEpoch = 0,
     this.dockOrigin,
+    this.occluded = false,
+    this.occlusionRect,
   });
   final DeskApp app;
   final DeskWindow? window;
@@ -22,6 +24,8 @@ class DesktopWindowMotion extends StatefulWidget {
   final Size canvasSize;
   final int layoutEpoch;
   final Offset? dockOrigin;
+  final bool occluded;
+  final Rect? occlusionRect;
   @override
   State<DesktopWindowMotion> createState() => _DesktopWindowMotionState();
 }
@@ -171,28 +175,39 @@ class _DesktopWindowMotionState extends State<DesktopWindowMotion>
           : .94 + .06 * progress;
       return Positioned.fromRect(
         rect: target,
-        child: Offstage(
-          offstage: visibility.isDismissed && !shown,
-          child: IgnorePointer(
-            ignoring: !shown || progress < .95,
-            child: ExcludeSemantics(
-              excluding: !shown,
-              child: Transform.translate(
-                offset: offset + rect.topLeft - target.topLeft,
-                child: Transform(
-                  alignment: Alignment.topLeft,
-                  transform: Matrix4.diagonal3Values(
-                    rect.width / target.width,
-                    rect.height / target.height,
-                    1,
-                  ),
-                  child: Transform.scale(
-                    key: ValueKey('window-scale-${widget.app.name}'),
-                    scale: scale,
-                    child: Opacity(
-                      key: ValueKey('window-opacity-${widget.app.name}'),
-                      opacity: progress.clamp(0, 1),
-                      child: content,
+        child: ClipPath(
+          key: ValueKey('window-clip-${widget.app.name}'),
+          clipBehavior: widget.occlusionRect == null
+              ? Clip.none
+              : Clip.hardEdge,
+          clipper: widget.occlusionRect == null
+              ? null
+              : _WindowOcclusionClipper(
+                  widget.occlusionRect!.shift(-target.topLeft),
+                ),
+          child: Offstage(
+            offstage: widget.occluded || (visibility.isDismissed && !shown),
+            child: IgnorePointer(
+              ignoring: !shown || progress < .95,
+              child: ExcludeSemantics(
+                excluding: !shown,
+                child: Transform.translate(
+                  offset: offset + rect.topLeft - target.topLeft,
+                  child: Transform(
+                    alignment: Alignment.topLeft,
+                    transform: Matrix4.diagonal3Values(
+                      rect.width / target.width,
+                      rect.height / target.height,
+                      1,
+                    ),
+                    child: Transform.scale(
+                      key: ValueKey('window-scale-${widget.app.name}'),
+                      scale: scale,
+                      child: Opacity(
+                        key: ValueKey('window-opacity-${widget.app.name}'),
+                        opacity: progress.clamp(0, 1),
+                        child: content,
+                      ),
                     ),
                   ),
                 ),
@@ -203,4 +218,18 @@ class _DesktopWindowMotionState extends State<DesktopWindowMotion>
       );
     },
   );
+}
+
+class _WindowOcclusionClipper extends CustomClipper<Path> {
+  _WindowOcclusionClipper(this.cover);
+  final Rect cover;
+  @override
+  Path getClip(Size size) => Path.combine(
+    PathOperation.difference,
+    Path()..addRect((Offset.zero & size).inflate(64)),
+    Path()..addRect(cover),
+  );
+  @override
+  bool shouldReclip(_WindowOcclusionClipper oldClipper) =>
+      cover != oldClipper.cover;
 }

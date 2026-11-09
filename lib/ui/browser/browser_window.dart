@@ -14,19 +14,22 @@ class BrowserWindow extends StatelessWidget {
     super.key,
     required this.workspace,
     this.interactive = true,
+    this.windowWidth = 1440,
   });
   final WorkspaceController workspace;
   final bool interactive;
+  final double windowWidth;
   @override
   Widget build(BuildContext context) => Column(
     children: [
       PointerInterceptor(
         child: SizedBox(
-          height: 60,
+          key: const ValueKey('browser-toolbar'),
+          height: browserToolbarHeight,
           child: ColoredBox(
             color: const Color(0xFFF1F5F7),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
                 children: [
                   _NavButton(
@@ -56,6 +59,42 @@ class BrowserWindow extends StatelessWidget {
                     child: BrowserAddressField(
                       workspace: workspace,
                       id: 'desktop',
+                      compact: true,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    key: const ValueKey('browser-exit-video'),
+                    width: browserExitWidth(windowWidth),
+                    child: Tooltip(
+                      message: 'Thu nhỏ video',
+                      child: TextButton(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          minimumSize: const Size(36, 36),
+                          backgroundColor: const Color(0xFFE0ECE9),
+                        ),
+                        onPressed: () => workspace.dispatch({
+                          'type': 'browserExitFullscreen',
+                        }),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.fullscreen_exit_rounded, size: 18),
+                            if (windowWidth >= 600) ...[
+                              const SizedBox(width: 4),
+                              const Flexible(
+                                child: Text(
+                                  'Thu nhỏ video',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 10),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -106,7 +145,7 @@ class BrowserWindow extends StatelessWidget {
       ),
       PointerInterceptor(
         child: Container(
-          height: 32,
+          height: browserFooterHeight,
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: const BoxDecoration(
             color: Color(0xFFF7F9FA),
@@ -137,7 +176,7 @@ class BrowserWindow extends StatelessWidget {
                   onPressed: () => _openExternal(context, workspace.browserUrl),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: const Size(30, 28),
+                    minimumSize: const Size(30, 22),
                   ),
                   icon: const Icon(Icons.open_in_new_rounded, size: 12),
                   label: const Text(
@@ -180,16 +219,23 @@ class BrowserAddressField extends StatefulWidget {
     required this.id,
     this.focusNode,
     this.onSubmitted,
+    this.compact = false,
   });
   final WorkspaceController workspace;
   final String id;
   final FocusNode? focusNode;
   final VoidCallback? onSubmitted;
+  final bool compact;
   @override
   State<BrowserAddressField> createState() => _BrowserAddressFieldState();
 }
 
 class _BrowserAddressFieldState extends State<BrowserAddressField> {
+  final localFocus = FocusNode();
+  FocusNode get focus => widget.focusNode ?? localFocus;
+  int focusSerial = -1;
+  bool syncing = false;
+  bool get mirror => widget.workspace.forwardAction != null;
   late String lastUrl = widget.workspace.browserUrl;
   late final text = TextEditingController(
     text: lastUrl == browserHome ? '' : lastUrl,
@@ -198,13 +244,68 @@ class _BrowserAddressFieldState extends State<BrowserAddressField> {
   void initState() {
     super.initState();
     widget.workspace.addListener(_sync);
+    text.addListener(_edited);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _sync();
+    });
   }
 
   void _sync() {
+    final workspace = widget.workspace;
+    if (workspace.activeApp != DeskApp.browser) {
+      if (focus.hasFocus) focus.unfocus();
+      return;
+    }
+    if (workspace.browserAddressEditing) {
+      syncing = true;
+      if (text.text != workspace.browserAddressDraft ||
+          (mirror &&
+              text.selection.extentOffset != workspace.browserAddressCaret)) {
+        text.value = TextEditingValue(
+          text: workspace.browserAddressDraft,
+          selection: TextSelection.collapsed(
+            offset: workspace.browserAddressCaret,
+          ),
+        );
+      }
+      syncing = false;
+      if (focusSerial != workspace.browserAddressFocusSerial &&
+          widget.id == 'desktop' &&
+          (mirror || workspace.browserAddressSource == 'desktop')) {
+        focusSerial = workspace.browserAddressFocusSerial;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && widget.workspace.browserAddressEditing) {
+            focus.requestFocus();
+          }
+        });
+      }
+      return;
+    }
+    if (mirror && focus.hasFocus) focus.unfocus();
     final url = widget.workspace.browserUrl;
     if (url == lastUrl) return;
     lastUrl = url;
     text.text = url == browserHome ? '' : url;
+  }
+
+  void _edited() {
+    final workspace = widget.workspace;
+    if (syncing ||
+        mirror ||
+        !focus.hasFocus ||
+        !workspace.browserAddressEditing) {
+      return;
+    }
+    final caret = text.selection.extentOffset.clamp(0, text.text.length);
+    if (workspace.browserAddressDraft == text.text &&
+        workspace.browserAddressCaret == caret) {
+      return;
+    }
+    workspace.dispatch({
+      'type': 'browserAddressDraft',
+      'text': text.text,
+      'caret': caret,
+    });
   }
 
   void _go() {
@@ -216,6 +317,7 @@ class _BrowserAddressFieldState extends State<BrowserAddressField> {
   @override
   void dispose() {
     widget.workspace.removeListener(_sync);
+    localFocus.dispose();
     text.dispose();
     super.dispose();
   }
@@ -224,7 +326,20 @@ class _BrowserAddressFieldState extends State<BrowserAddressField> {
   Widget build(BuildContext context) => TextField(
     key: ValueKey('browser-address-${widget.id}'),
     controller: text,
-    focusNode: widget.focusNode,
+    focusNode: focus,
+    readOnly: mirror,
+    showCursor: true,
+    cursorColor: AppColors.blue,
+    cursorWidth: 2,
+    onTap: () {
+      widget.workspace.dispatch({
+        'type': 'browserFocusAddress',
+        'source': widget.id,
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) focus.requestFocus();
+      });
+    },
     keyboardType: TextInputType.text,
     hintLocales: widget.workspace.keyboardLanguage.hintLocales,
     textInputAction: TextInputAction.go,
@@ -235,7 +350,10 @@ class _BrowserAddressFieldState extends State<BrowserAddressField> {
       hintText: 'Tìm với Google hoặc nhập địa chỉ',
       fillColor: Colors.white,
       isDense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: widget.compact ? 8 : 13,
+      ),
       prefixIcon: Icon(
         widget.workspace.browserUrl.startsWith('https:')
             ? Icons.lock_outline_rounded
@@ -245,6 +363,10 @@ class _BrowserAddressFieldState extends State<BrowserAddressField> {
       ),
       prefixIconConstraints: const BoxConstraints(minWidth: 34),
       suffixIcon: IconButton(
+        constraints: widget.compact
+            ? const BoxConstraints.tightFor(width: 30, height: 30)
+            : null,
+        padding: widget.compact ? EdgeInsets.zero : const EdgeInsets.all(8),
         tooltip: 'Đi đến địa chỉ',
         onPressed: _go,
         icon: const Icon(Icons.arrow_forward_rounded, size: 16),
@@ -275,8 +397,8 @@ class _NavButton extends StatelessWidget {
   final bool enabled;
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 40,
-    height: 40,
+    width: 32,
+    height: 36,
     child: IconButton(
       tooltip: label,
       onPressed: enabled ? onTap : null,

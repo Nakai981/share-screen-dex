@@ -7,18 +7,30 @@ const browserDesktopFullscreenScript = r'''
   if (window.__sideScreenFullscreenInstalled || !document.documentElement) return;
   window.__sideScreenFullscreenInstalled = true;
   let target = null, saved = [], exitButton = null;
+  const nativeExit = document.exitFullscreen?.bind(document);
+  const nativeWebkitExit = (document.webkitExitFullscreen || document.webkitCancelFullScreen)?.bind(document);
+  const closeNative = () => {
+    for (const close of [nativeExit, nativeWebkitExit]) {
+      try { Promise.resolve(close?.()).catch(() => {}); } catch (_) {}
+    }
+    document.querySelectorAll('video').forEach(video => {
+      try { video.webkitExitFullscreen?.(); } catch (_) {}
+      try { video.webkitSetPresentationMode?.('inline'); } catch (_) {}
+    });
+  };
   const notify = () => {
     document.dispatchEvent(new Event('fullscreenchange'));
     document.dispatchEvent(new Event('webkitfullscreenchange'));
   };
   const exit = () => {
-    if (!target) return Promise.resolve();
+    if (!target) { closeNative(); return Promise.resolve(); }
     exitButton?.remove();
     saved.forEach(([el, style]) => {
       el.style.cssText = style || '';
       if (style === null) el.removeAttribute('style');
     });
     target = null; saved = []; exitButton = null;
+    closeNative();
     notify();
     return Promise.resolve();
   };
@@ -40,6 +52,7 @@ const browserDesktopFullscreenScript = r'''
     exitButton.textContent = '✕';
     exitButton.setAttribute('aria-label','Thoát phóng lớn');
     exitButton.id = 'sidescreen-exit-fullscreen';
+    exitButton.type = 'button';
     exitButton.style.cssText = 'position:fixed!important;top:10px!important;right:10px!important;width:40px!important;height:40px!important;z-index:2147483647!important;border:1px solid #ffffff55!important;border-radius:20px!important;background:#18313fdd!important;color:white!important;font:20px system-ui!important;cursor:pointer!important;display:grid!important;place-items:center!important;';
     exitButton.addEventListener('click', e => { e.stopPropagation(); exit(); });
     document.body.appendChild(exitButton);

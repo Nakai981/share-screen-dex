@@ -64,7 +64,7 @@ class DesktopView extends StatelessWidget {
                       top: 0,
                       left: 0,
                       right: 0,
-                      height: 44,
+                      height: desktopTop,
                       child: _DesktopBar(),
                     ),
                     for (final app in [
@@ -76,6 +76,14 @@ class DesktopView extends StatelessWidget {
                       DesktopWindowMotion(
                         key: ValueKey('window-motion-${app.name}'),
                         app: app,
+                        occluded: workspace.isWindowOccluded(app),
+                        occlusionRect:
+                            workspace.activeApp == DeskApp.browser &&
+                                app != DeskApp.browser
+                            ? workspace.windows
+                                  .lastWhere((w) => !w.minimized)
+                                  .visibleRect
+                            : null,
                         canvasSize: workspace.canvasSize,
                         layoutEpoch: workspace.layoutEpoch,
                         dockOrigin: workspace.dockItem(dockIndex(app)).center,
@@ -206,18 +214,18 @@ class _DesktopBar extends StatelessWidget {
   const _DesktopBar();
   @override
   Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 24),
+    padding: const EdgeInsets.symmetric(horizontal: 16),
     color: const Color(0x66122831),
     child: const Row(
       children: [
-        Icon(Icons.space_dashboard_rounded, color: Colors.white, size: 20),
+        Icon(Icons.space_dashboard_rounded, color: Colors.white, size: 16),
         SizedBox(width: 10),
         Text(
           'SideScreen',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w700,
-            fontSize: 14,
+            fontSize: 12,
           ),
         ),
         SizedBox(width: 32),
@@ -289,7 +297,7 @@ class _DesktopWindow extends StatelessWidget {
                       onPanUpdate: (d) => action('moveWindow', d.delta),
                       onDoubleTap: () => action('maximize'),
                       child: Container(
-                        height: 48,
+                        height: windowTitleHeight,
                         decoration: const BoxDecoration(
                           color: Color(0xFFF7F9FA),
                           border: Border(
@@ -308,7 +316,7 @@ class _DesktopWindow extends StatelessWidget {
                               color: notes
                                   ? AppColors.blue
                                   : const Color(0xFF358677),
-                              size: 19,
+                              size: 16,
                             ),
                             const SizedBox(width: 9),
                             Expanded(
@@ -357,6 +365,7 @@ class _DesktopWindow extends StatelessWidget {
                       DeskApp.guide => const _GuideContent(),
                       DeskApp.browser => BrowserWindow(
                         workspace: workspace,
+                        windowWidth: window.visibleRect.width,
                         interactive: interactive,
                       ),
                     },
@@ -412,8 +421,8 @@ class _WindowButton extends StatelessWidget {
   final bool close;
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 46,
-    height: 48,
+    width: windowControlWidth,
+    height: windowTitleHeight,
     child: Tooltip(
       message: label,
       child: InkWell(

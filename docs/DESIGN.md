@@ -8,6 +8,12 @@ The distinctive element is the folded ribbon wallpaper, drawn in Flutter so it s
 
 The responsive layouts serve the same session: stacked controls on a phone; a controller column and a larger interactive workspace preview on wide screens. Window actions and direct preview interactions share the same domain controller as the native external display.
 
+Version 0.8 reduces the desktop bar/window title/browser toolbar to 28/36/44 logical points. Layout and virtual-pointer hit regions share these metrics. Fully covered windows stay mounted offstage; when a restored browser is in front, background Flutter windows also clip out its rectangle so their paint cannot cover the platform WebView. Switching apps preserves drafts and window geometry.
+
+The browser toolbar has a persistent exit-video action outside web content. The iOS chrome window mirrors that control above media presentations; virtual-pointer clicks dispatch the same exit command. JavaScript exits both the in-page player and captured native fullscreen APIs. The iOS coordinator retains weak WebView references and additionally calls public WKWebView.closeAllMediaPresentations(completionHandler:) on a new exit command. This native fallback requires Mac compilation and device validation.
+
+An address click is a shared focus request. The phone opens its normal address TextField; the external read-only field mirrors the draft, caret and blinking cursor without attaching an external text-input client. Source identity avoids stealing focus from the home/phone editor. Address drafts and active focus are omitted from persisted sessions.
+
 Version 0.2 adds a real browser window with a compact address toolbar and a bundled interactive HTML demo. Native devices use the system WebView; web preview uses an iframe and offers an external-tab action for sites that block embedding.
 
 Version 0.4 uses critically damped springs with perceptual durations of 360 ms for opening, 220 ms for closing and 380 ms for arrangement/maximize. Fresh windows appear near their final scale; minimizing/restoring follows a scale trajectory to the Dock. This is macOS-inspired Flutter motion. Content is laid out at its destination once, reused as the AnimatedBuilder child, and isolated by a RepaintBoundary. Direct dragging stays immediate. Minimized windows keep their widget subtree so browser and address drafts survive. Reduced-motion preferences disable these transitions.

@@ -2,10 +2,15 @@
 
 Ứng dụng Flutter cho Android/iPhone: khi mở app và có màn hình ngoài được hệ điều hành cấp qua USB-C/HDMI, app mở một không gian làm việc riêng trên màn hình đó. Điện thoại là bàn điều khiển.
 
-## Bản 0.7 đã có
+## Bản 0.8 đã có
+
+- Cửa sổ đang chọn nằm trên cùng; ghi chú bị che không vẽ nổi lên trình duyệt, nhưng vẫn giữ nội dung khi chuyển app. Cửa sổ khôi phục vẫn có thể chồng lên nhau.
+- Thanh trên desktop còn 28 điểm, tiêu đề cửa sổ 36 điểm và thanh địa chỉ 44 điểm để dành thêm chỗ cho trang web.
+- Nút **Thu nhỏ video** luôn có ở bên phải thanh địa chỉ, nhận cả chuột ảo từ điện thoại. iOS còn vẽ nút này trên lớp chrome riêng và dùng API WebKit công khai để đóng trình phát native khi nhận lệnh thoát.
+- Bấm ô địa chỉ bằng chuột ảo tự mở ô nhập trên điện thoại; chữ đang nhập và con trỏ nháy đồng bộ lên màn hình ngoài. Bàn phím vẫn thuộc điện thoại.
 
 - Hai giao diện độc lập: điều khiển trên điện thoại và desktop trên màn hình ngoài.
-- iOS đặt taskbar và con trỏ trong một UIWindow trong suốt riêng, cao hơn cửa sổ nội dung/native fullscreen, không nhận chạm hay lấy quyền bàn phím của điện thoại. Cần build lại cả Swift và Dart của bản 0.7; thay đổi iOS chưa được xác nhận trên máy thật trong môi trường Windows này.
+- iOS đặt taskbar và con trỏ trong một UIWindow trong suốt riêng, cao hơn cửa sổ nội dung/native fullscreen, không nhận chạm hay lấy quyền bàn phím của điện thoại. Cần build lại cả Swift và Dart của bản 0.8; thay đổi iOS chưa được xác nhận trên máy thật trong môi trường Windows này.
 - Con trỏ nhỏ 16×20, màu mint có mặt cười; có chỉnh kích thước trong Tùy chỉnh, lưu cùng phiên.
 - Di chuột chỉ gửi tọa độ qua bridge mới; không gửi lại toàn bộ ghi chú/cửa sổ hay dựng lại nội dung các app trong từng lần di chuyển. Bridge cũ tiếp tục dùng snapshot đầy đủ.
 - Tự kiểm tra màn hình lúc mở app và theo dõi cắm/rút trong lúc chạy.
@@ -63,7 +68,7 @@ flutter build apk --debug
 
 APK cài thử: `build/app/outputs/flutter-apk/app-debug.apk`. Đây là bản debug ký bằng khóa phát triển; cấu hình khóa phát hành riêng trước khi đưa lên cửa hàng.
 
-Bản ARM64 0.7: `artifacts/SideScreen-0.7.0-arm64.apk` (tạo cục bộ khi build, không lưu APK trong Git).
+Bản ARM64 0.8: `artifacts/SideScreen-0.8.0-arm64.apk` (tạo cục bộ khi build, không lưu APK trong Git).
 
 Trên Windows, có thể dùng `scripts\build_android.cmd debug` để tự tìm Java đi kèm Android Studio. Bỏ `debug` để build APK release dành cho Android ARM64; bản release này vẫn dùng khóa phát triển của dự án.
 

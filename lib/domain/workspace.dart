@@ -4,7 +4,27 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 
 const desktopSize = Size(1440, 900);
-const desktopTop = 44.0;
+const desktopTop = 28.0;
+const windowTop = desktopTop + 8;
+const windowTitleHeight = 36.0;
+const windowControlWidth = 36.0;
+const browserToolbarHeight = 44.0;
+const browserFooterHeight = 24.0;
+const browserContentTop = 1 + windowTitleHeight + browserToolbarHeight;
+const browserContentBottom = 1 + browserFooterHeight;
+double browserExitWidth(double width) => width >= 600 ? 124 : 36;
+Rect browserExitRect(Rect window) => Rect.fromLTWH(
+  window.right - 9 - browserExitWidth(window.width),
+  window.top + 1 + windowTitleHeight + 4,
+  browserExitWidth(window.width),
+  browserToolbarHeight - 8,
+);
+Rect browserAddressRect(Rect window) => Rect.fromLTRB(
+  window.left + 9 + 4 * 32 + 6,
+  window.top + 1 + windowTitleHeight + 4,
+  browserExitRect(window).left - 6,
+  window.top + 1 + windowTitleHeight + browserToolbarHeight - 4,
+);
 const desktopSafeInset = 8.0;
 const desktopBottom = 808.0;
 const desktopDockRect = Rect.fromLTWH(560, 820, 320, 72);
@@ -86,7 +106,7 @@ class DeskWindow {
   double canvasWidth;
   double workBottom;
   Rect get visibleRect => maximized
-      ? Rect.fromLTWH(16, 56, canvasWidth - 32, workBottom - 56)
+      ? Rect.fromLTWH(16, windowTop, canvasWidth - 32, workBottom - windowTop)
       : rect;
   Map<String, Object?> toJson() => {
     'app': app.name,
@@ -123,6 +143,11 @@ class WorkspaceController extends ChangeNotifier {
   int browserCommandSerial = 0;
   Map<String, Object?>? browserCommand;
   String? browserError;
+  bool browserAddressEditing = false;
+  String browserAddressDraft = '';
+  int browserAddressCaret = 0;
+  int browserAddressFocusSerial = 0;
+  String browserAddressSource = 'desktop';
   String get browserUrl => _browserHistory[_browserIndex];
   bool get browserCanGoBack => _browserIndex > 0;
   bool get browserCanGoForward => _browserIndex < _browserHistory.length - 1;
@@ -160,6 +185,23 @@ class WorkspaceController extends ChangeNotifier {
   bool _resizing = false;
   List<DeskWindow> get windows => List.unmodifiable(_windows);
   DeskApp? get activeApp => _windows.where((w) => !w.minimized).lastOrNull?.app;
+  bool isWindowOccluded(DeskApp app) {
+    final front = _windows.where((w) => !w.minimized).lastOrNull;
+    final window = _find(app);
+    if (front == null ||
+        window == null ||
+        front.app == app ||
+        window.minimized) {
+      return false;
+    }
+    final r = window.visibleRect;
+    final cover = front.visibleRect;
+    return cover.left <= r.left &&
+        cover.top <= r.top &&
+        cover.right >= r.right &&
+        cover.bottom >= r.bottom;
+  }
+
   Offset? get browserPointerPosition {
     if (activeApp != DeskApp.browser) return null;
     final window = _find(DeskApp.browser);
@@ -167,9 +209,9 @@ class WorkspaceController extends ChangeNotifier {
     final r = window.visibleRect;
     final body = Rect.fromLTRB(
       r.left + 1,
-      r.top + 109,
+      r.top + browserContentTop,
       r.right - 1,
-      r.bottom - 33,
+      r.bottom - browserContentBottom,
     );
     if (!body.contains(cursor)) return null;
     return Offset(
@@ -278,18 +320,22 @@ class WorkspaceController extends ChangeNotifier {
             _navigate(url);
           }
           browserError = null;
+          if (type == 'browserNavigate') browserAddressEditing = false;
           if (type == 'browserNavigate') _open(DeskApp.browser, launch: false);
         } on FormatException catch (error) {
           browserError = error.message;
           persistent = false;
         }
       case 'browserBack':
+        browserAddressEditing = false;
         if (browserCanGoBack) _browserIndex--;
         browserError = null;
       case 'browserForward':
+        browserAddressEditing = false;
         if (browserCanGoForward) _browserIndex++;
         browserError = null;
       case 'browserHome':
+        browserAddressEditing = false;
         _navigate(browserHome);
         browserError = null;
       case 'browserReload':
@@ -300,6 +346,21 @@ class WorkspaceController extends ChangeNotifier {
         persistent = false;
       case 'browserExitFullscreen':
         _browserCommand('exitFullscreen');
+        persistent = false;
+      case 'browserFocusAddress':
+        _open(DeskApp.browser, launch: false);
+        _editBrowserAddress(
+          action['source'] is String ? action['source'] as String : 'desktop',
+        );
+        persistent = false;
+      case 'browserAddressDraft':
+        if (action['text'] is! String) return;
+        final draft = action['text'] as String;
+        browserAddressDraft = draft.substring(0, math.min(draft.length, 4096));
+        browserAddressCaret = _number(
+          action['caret'],
+          browserAddressDraft.length.toDouble(),
+        ).toInt().clamp(0, browserAddressDraft.length);
         persistent = false;
       case 'browserText':
         if (action['text'] is! String) return;
@@ -333,7 +394,8 @@ class WorkspaceController extends ChangeNotifier {
         if (target != null) {
           _focus(target.app);
           final r = target.visibleRect;
-          if (cursor.dy < r.top + 48 && cursor.dx < r.right - 138) {
+          if (cursor.dy < r.top + windowTitleHeight &&
+              cursor.dx < r.right - 3 * windowControlWidth) {
             _dragging = target.app;
           } else if (!target.maximized &&
               cursor.dx >= r.right - 28 &&
@@ -435,7 +497,12 @@ class WorkspaceController extends ChangeNotifier {
     final visible = _windows.where((w) => !w.minimized).toList();
     if (visible.isEmpty) return;
     const gap = 12.0;
-    final area = Rect.fromLTRB(16, 56, canvasSize.width - 16, workBottom - 8);
+    final area = Rect.fromLTRB(
+      16,
+      windowTop,
+      canvasSize.width - 16,
+      workBottom - 8,
+    );
     final maxColumns = math.max(1, ((area.width + gap) / (440 + gap)).floor());
     final maxRows = math.max(1, ((area.height + gap) / (340 + gap)).floor());
     while (visible.length > maxColumns * maxRows) {
@@ -459,6 +526,7 @@ class WorkspaceController extends ChangeNotifier {
   }
 
   void _focus(DeskApp app) {
+    if (app != DeskApp.browser) browserAddressEditing = false;
     final existing = _find(app);
     if (existing == null) return;
     _windows.remove(existing);
@@ -516,32 +584,61 @@ class WorkspaceController extends ChangeNotifier {
     if (target == null) return;
     _focus(target.app);
     final r = target.visibleRect;
-    if (cursor.dy < r.top + 48 && cursor.dx > r.right - 138) {
+    if (cursor.dy < r.top + windowTitleHeight &&
+        cursor.dx > r.right - 3 * windowControlWidth) {
       final fromRight = r.right - cursor.dx;
-      if (fromRight < 46) {
+      if (fromRight < windowControlWidth) {
         _windows.remove(target);
-      } else if (fromRight < 92) {
+      } else if (fromRight < 2 * windowControlWidth) {
         target.maximized = !target.maximized;
       } else {
         target.minimized = true;
       }
     } else if (target.app == DeskApp.browser) {
       final local = cursor - r.topLeft;
-      if (local.dy >= 48 && local.dy < 108) {
-        if (local.dx >= 8 && local.dx < 48 && browserCanGoBack) _browserIndex--;
-        if (local.dx >= 48 && local.dx < 88 && browserCanGoForward) {
+      if (browserExitRect(r).contains(cursor)) {
+        _browserCommand('exitFullscreen');
+      } else if (browserAddressRect(r).contains(cursor)) {
+        if (cursor.dx >= browserAddressRect(r).right - 32) {
+          dispatch({
+            'type': 'browserNavigate',
+            'url': browserAddressEditing ? browserAddressDraft : browserUrl,
+          });
+        } else {
+          _editBrowserAddress();
+        }
+      } else if (local.dy >= windowTitleHeight &&
+          local.dy < browserContentTop) {
+        if (local.dx >= 8 && local.dx < 40 && browserCanGoBack) _browserIndex--;
+        if (local.dx >= 40 && local.dx < 72 && browserCanGoForward) {
           _browserIndex++;
         }
-        if (local.dx >= 88 && local.dx < 128) browserReload++;
-        if (local.dx >= 128 && local.dx < 168) _navigate(browserHome);
-      } else if (local.dy >= 109 && local.dy < r.height - 33) {
+        if (local.dx >= 72 && local.dx < 104) browserReload++;
+        if (local.dx >= 104 && local.dx < 136) _navigate(browserHome);
+        browserAddressEditing = false;
+      } else if (local.dy >= browserContentTop &&
+          local.dy < r.height - browserContentBottom) {
+        browserAddressEditing = false;
         _browserCommand(
           'click',
           x: ((local.dx - 1) / (r.width - 2)).clamp(0, 1),
-          y: ((local.dy - 109) / (r.height - 142)).clamp(0, 1),
+          y:
+              ((local.dy - browserContentTop) /
+                      (r.height - browserContentTop - browserContentBottom))
+                  .clamp(0, 1),
         );
       }
     }
+  }
+
+  void _editBrowserAddress([String source = 'desktop']) {
+    if (!browserAddressEditing) {
+      browserAddressDraft = browserUrl == browserHome ? '' : browserUrl;
+      browserAddressCaret = browserAddressDraft.length;
+    }
+    browserAddressEditing = true;
+    browserAddressSource = source;
+    browserAddressFocusSerial++;
   }
 
   void _navigate(String url) {
@@ -595,6 +692,11 @@ class WorkspaceController extends ChangeNotifier {
     'browserReload': browserReload,
     'browserCommand': forStorage ? null : browserCommand,
     'browserError': browserError,
+    'browserAddressEditing': !forStorage && browserAddressEditing,
+    'browserAddressDraft': forStorage ? '' : browserAddressDraft,
+    'browserAddressCaret': forStorage ? 0 : browserAddressCaret,
+    'browserAddressFocusSerial': forStorage ? 0 : browserAddressFocusSerial,
+    'browserAddressSource': browserAddressSource,
   };
 
   bool restore(Map<Object?, Object?> json) {
@@ -682,6 +784,22 @@ class WorkspaceController extends ChangeNotifier {
     browserError = json['browserError'] is String
         ? json['browserError'] as String
         : null;
+    browserAddressEditing = json['browserAddressEditing'] == true;
+    browserAddressDraft = json['browserAddressDraft'] is String
+        ? (json['browserAddressDraft'] as String).substring(
+            0,
+            math.min(4096, (json['browserAddressDraft'] as String).length),
+          )
+        : '';
+    browserAddressCaret = _number(
+      json['browserAddressCaret'],
+    ).toInt().clamp(0, browserAddressDraft.length);
+    browserAddressFocusSerial = _number(
+      json['browserAddressFocusSerial'],
+    ).toInt();
+    browserAddressSource = json['browserAddressSource'] is String
+        ? json['browserAddressSource'] as String
+        : 'desktop';
     browserCommand = json['browserCommand'] is Map
         ? Map<String, Object?>.from(json['browserCommand'] as Map)
         : null;

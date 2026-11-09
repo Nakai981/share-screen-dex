@@ -820,8 +820,8 @@ class _ControllerPageState extends State<ControllerPage> {
               const SizedBox(height: 12),
               Text(
                 widget.session.status.nativeAvailable
-                    ? 'SideScreen 0.7 · Màn hình có dây'
-                    : 'SideScreen 0.7 · Chế độ xem thử',
+                    ? 'SideScreen 0.8 · Màn hình có dây'
+                    : 'SideScreen 0.8 · Chế độ xem thử',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 10, color: AppColors.muted),
               ),

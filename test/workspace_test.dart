@@ -21,7 +21,7 @@ void main() {
       'dy': -99999,
     });
     var notes = desk.windows.last;
-    expect(notes.rect.topLeft, const Offset(8, 52));
+    expect(notes.rect.topLeft, const Offset(8, 36));
     desk.dispatch({
       'type': 'resizeWindow',
       'app': 'notes',

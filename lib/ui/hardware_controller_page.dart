@@ -42,6 +42,7 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
   bool keyboardVisible = false;
   bool addressVisible = false;
   bool dragging = false;
+  int addressFocusSerial = 0;
   WorkspaceController get workspace => widget.workspace;
 
   @override
@@ -49,6 +50,7 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
     super.initState();
     active = workspace.activeApp;
     language = workspace.keyboardLanguage;
+    addressFocusSerial = workspace.browserAddressFocusSerial;
     workspace.addListener(_sync);
     if (widget.fullScreen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -59,6 +61,11 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
 
   void _sync() {
     notes.syncRemote(workspace.notes);
+    if (workspace.browserAddressEditing &&
+        addressFocusSerial != workspace.browserAddressFocusSerial) {
+      addressFocusSerial = workspace.browserAddressFocusSerial;
+      _showAddress();
+    }
     if (active != workspace.activeApp ||
         language != workspace.keyboardLanguage) {
       setState(() {
@@ -82,14 +89,22 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
   }
 
   void _address() {
+    workspace.dispatch({'type': 'browserFocusAddress'});
+    _showAddress();
+  }
+
+  void _showAddress() {
     if (widget.fullScreen) setState(() => addressVisible = true);
-    _open(DeskApp.browser);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) addressFocus.requestFocus();
     });
   }
 
   void _selected() {
+    if (workspace.browserAddressEditing) {
+      _showAddress();
+      return;
+    }
     if (widget.fullScreen) {
       if (addressVisible) setState(() => addressVisible = false);
       if (workspace.activeApp == DeskApp.browser) pageText.clear();
@@ -666,7 +681,7 @@ class _RemoteDesktopPainter extends CustomPainter {
               : const Color(0xFFC5D7DD),
       );
       canvas.drawRect(
-        Rect.fromLTWH(r.left, r.top, r.width, 48),
+        Rect.fromLTWH(r.left, r.top, r.width, windowTitleHeight),
         Paint()..color = const Color(0xFFE3EBEF),
       );
       final text = TextPainter(
@@ -687,7 +702,10 @@ class _RemoteDesktopPainter extends CustomPainter {
       text.paint(canvas, r.topLeft + const Offset(16, 10));
       for (var i = 0; i < 3; i++) {
         canvas.drawCircle(
-          Offset(r.right - 23 - 46 * i, r.top + 24),
+          Offset(
+            r.right - 18 - windowControlWidth * i,
+            r.top + windowTitleHeight / 2,
+          ),
           7,
           Paint()..color = i == 0 ? const Color(0xFFE87871) : AppColors.muted,
         );

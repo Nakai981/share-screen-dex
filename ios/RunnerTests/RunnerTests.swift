@@ -5,6 +5,19 @@ import XCTest
 
 class RunnerTests: XCTestCase {
 
+  func testVideoExitControlStaysOutsideWebContentAndTracksWindow() async {
+    await MainActor.run {
+      let overlay = ExternalDesktopOverlay(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))
+      overlay.apply(["fullScreen": true, "displayAspect": 16.0 / 9.0, "viewportHeight": 1080,
+                     "windows": [["app": "browser", "maximized": true]]])
+      XCTAssertFalse(overlay.videoExit.isHidden)
+      XCTAssertEqual(overlay.videoExit.frame.minY, 92.4, accuracy: 0.01)
+      XCTAssertEqual(overlay.videoExit.frame.width, 148.8, accuracy: 0.01)
+      overlay.apply(["windows": [["app": "browser"], ["app": "notes"]]])
+      XCTAssertTrue(overlay.videoExit.isHidden)
+    }
+  }
+
   func testDesktopOverlayStaysAboveContentWithoutCapturingTouches() async {
     await MainActor.run {
       let window = ExternalDesktopChromeWindow(frame: CGRect(x: 0, y: 0, width: 1920, height: 1080))

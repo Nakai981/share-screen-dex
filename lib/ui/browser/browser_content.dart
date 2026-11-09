@@ -47,6 +47,7 @@ footer{padding-top:34px;color:#74838c;font-size:12px}#echo{min-height:28px;color
 window.addEventListener('message', e => {
   if (e.source !== parent || !e.data || e.data.source !== 'sidescreen') return;
   const c = e.data.command;
+  if (c.type === 'exitFullscreen') { window.__sideScreenExitFullscreen?.(); return; }
   if (c.type === 'scroll') { window.scrollBy(0, c.dy || 0); return; }
   if (c.type === 'text') { const el=document.activeElement; if(el && 'value' in el){el.value=c.text||'';el.dispatchEvent(new Event('input',{bubbles:true}));}return; }
   const el=document.elementFromPoint(innerWidth*c.x,innerHeight*c.y);if(el){if(el.focus)el.focus();el.click();}

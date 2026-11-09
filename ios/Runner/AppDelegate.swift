@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import WebKit
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -29,6 +30,7 @@ final class ExternalDisplayCoordinator {
   private var externalEngine: FlutterEngine?
   private weak var externalScene: UIWindowScene?
   private weak var desktopOverlay: ExternalDesktopOverlay?
+  private let browserViews = NSHashTable<WKWebView>.weakObjects()
   private var state: [String: Any]?
   private var accessoryRegistration: AnyObject?
   private weak var accessoryOwner: UIViewController?
@@ -91,6 +93,7 @@ final class ExternalDisplayCoordinator {
   }
 
   func disconnect() {
+    browserViews.removeAllObjects()
     desktopOverlay = nil
     secondary?.setMethodCallHandler(nil)
     secondary = nil
@@ -118,6 +121,15 @@ final class ExternalDisplayCoordinator {
         result(nil)
       case "publishState":
         if !external, let next = call.arguments as? [String: Any] {
+          let previous = self.state?["browserCommand"] as? [String: Any]
+          let command = next["browserCommand"] as? [String: Any]
+          self.collectBrowserViews()
+          if command?["type"] as? String == "exitFullscreen",
+             (command?["serial"] as? NSNumber) != (previous?["serial"] as? NSNumber) {
+            for webView in self.browserViews.allObjects {
+              webView.closeAllMediaPresentations(completionHandler: nil)
+            }
+          }
           self.state = next
           self.desktopOverlay?.apply(next)
           self.secondary?.invokeMethod("stateChanged", arguments: next)
@@ -125,6 +137,7 @@ final class ExternalDisplayCoordinator {
         result(nil)
       case "publishPointer":
         if !external, let pointer = call.arguments as? [String: Any] {
+          if self.browserViews.allObjects.isEmpty { self.collectBrowserViews() }
           var next = self.state ?? [:]
           for key in ["cursorX", "cursorY"] {
             if let number = pointer[key] as? NSNumber, number.doubleValue.isFinite {
@@ -170,6 +183,14 @@ final class ExternalDisplayCoordinator {
       value["height"] = Int(screen.nativeBounds.height)
     }
     return value
+  }
+
+  private func collectBrowserViews() {
+    func visit(_ view: UIView) {
+      if let browser = view as? WKWebView { browserViews.add(browser) }
+      for child in view.subviews { visit(child) }
+    }
+    for window in externalScene?.windows ?? [] { visit(window) }
   }
 
   func notifyStatus() {

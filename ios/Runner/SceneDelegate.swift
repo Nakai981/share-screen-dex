@@ -112,6 +112,7 @@ final class ExternalDesktopOverlay: UIView {
   private let brand = UILabel()
   private let arrange = UIImageView(image: UIImage(systemName: "rectangle.split.3x1"))
   private let cursorView = UIView()
+  let videoExit = UILabel()
   private var icons: [UIImageView] = []
   private var labels: [UILabel] = []
   private var indicators: [UIView] = []
@@ -161,6 +162,13 @@ final class ExternalDesktopOverlay: UIView {
       labels.append(label)
       indicators.append(dot)
     }
+    videoExit.text = "⤢  Thu nhỏ video"
+    videoExit.textAlignment = .center
+    videoExit.textColor = UIColor(red: 24/255, green: 49/255, blue: 63/255, alpha: 1)
+    videoExit.backgroundColor = UIColor(red: 224/255, green: 236/255, blue: 233/255, alpha: 1)
+    videoExit.clipsToBounds = true
+    videoExit.isHidden = true
+    addSubview(videoExit)
     configureCursor()
     addSubview(cursorView)
   }
@@ -211,13 +219,29 @@ final class ExternalDesktopOverlay: UIView {
     let windows = snapshot["windows"] as? [[String: Any]] ?? []
     let active = windows.last(where: { $0["minimized"] as? Bool != true })?["app"] as? String
     let running = Set(windows.compactMap { $0["app"] as? String })
-    let key = "\(bounds.size)|\(logicalWidth)|\(barTop)|\(dockUnit)|\(running.sorted())|\(active ?? "")"
+    let browser = windows.first(where: { $0["app"] as? String == "browser" && $0["minimized"] as? Bool != true })
+    func value(_ key: String, _ fallback: CGFloat) -> CGFloat {
+      guard let number = browser?[key] as? NSNumber, number.doubleValue.isFinite else { return fallback }
+      return CGFloat(number.doubleValue)
+    }
+    let maximized = browser?["maximized"] as? Bool == true
+    let browserX = maximized ? 16 : value("x", 210)
+    let browserY = maximized ? 36 : value("y", 92)
+    let browserWidth = maximized ? logicalWidth - 32 : value("width", 1040)
+    let exitWidth: CGFloat = browserWidth >= 600 ? 124 : 36
+    let exitFrame = CGRect(x: browserX + browserWidth - 9 - exitWidth, y: browserY + 41, width: exitWidth, height: 36)
+    let key = "\(bounds.size)|\(logicalWidth)|\(barTop)|\(dockUnit)|\(running.sorted())|\(active ?? "")|\(exitFrame)"
     guard key != chromeKey else { return }
     chromeKey = key
     let s = scale
     let unit = dockUnit * s
     CATransaction.begin()
     CATransaction.setDisableActions(true)
+    videoExit.isHidden = active != "browser" || browser == nil
+    videoExit.frame = CGRect(x: origin.x + exitFrame.minX * s, y: origin.y + exitFrame.minY * s, width: exitFrame.width * s, height: exitFrame.height * s)
+    videoExit.text = browserWidth >= 600 ? "⤢  Thu nhỏ video" : "⤢"
+    videoExit.font = .systemFont(ofSize: 10 * s, weight: .medium)
+    videoExit.layer.cornerRadius = 10 * s
     taskbar.frame = CGRect(x: origin.x + barLeft * s, y: origin.y + barTop * s, width: 320 * unit, height: 72 * unit)
     taskbar.layer.cornerRadius = 18 * unit
     brand.isHidden = true
