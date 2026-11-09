@@ -5,9 +5,9 @@ import 'package:flutter/painting.dart';
 
 const desktopSize = Size(1440, 900);
 const desktopTop = 44.0;
-const desktopSafeInset = 32.0;
-const desktopBottom = 800.0;
-const desktopDockRect = Rect.fromLTWH(596, 812, 248, 56);
+const desktopSafeInset = 8.0;
+const desktopBottom = 808.0;
+const desktopDockRect = Rect.fromLTWH(560, 820, 320, 72);
 const browserHome = 'sidescreen://home';
 const browserDemo = 'sidescreen://demo';
 
@@ -16,10 +16,10 @@ Rect dockRectFor(
   double safeInset = desktopSafeInset,
   double uiScale = 1,
 ]) => Rect.fromLTWH(
-  (size.width - 248 * uiScale) / 2,
-  size.height - safeInset - 56 * uiScale,
-  248 * uiScale,
-  56 * uiScale,
+  (size.width - 320 * uiScale) / 2,
+  size.height - (safeInset + 72) * uiScale,
+  320 * uiScale,
+  72 * uiScale,
 );
 Rect dockItemRect(
   int index, [
@@ -27,10 +27,10 @@ Rect dockItemRect(
   double safeInset = desktopSafeInset,
   double uiScale = 1,
 ]) => Rect.fromLTWH(
-  (size.width - 220 * uiScale) / 2 + index * 56 * uiScale,
-  size.height - safeInset - 50 * uiScale,
-  52 * uiScale,
-  44 * uiScale,
+  (size.width - 280 * uiScale) / 2 + index * 72 * uiScale,
+  size.height - (safeInset + 64) * uiScale,
+  64 * uiScale,
+  56 * uiScale,
 );
 int dockIndex(DeskApp app) => switch (app) {
   DeskApp.notes => 0,
@@ -145,16 +145,38 @@ class WorkspaceController extends ChangeNotifier {
   KeyboardLanguage keyboardLanguage = KeyboardLanguage.system;
   Size get canvasSize => Size(fullScreen ? 900 * displayAspect : 1440, 900);
   double get dockScale =>
-      math.min(900 / viewportHeight, (canvasSize.width - 32) / 248);
+      math.min(900 / viewportHeight, (canvasSize.width - 16) / 320);
   Rect get dockRect => dockRectFor(canvasSize, safeInset, dockScale);
   Rect dockItem(int index) =>
       dockItemRect(index, canvasSize, safeInset, dockScale);
   double get workBottom => dockRect.top - 12 * dockScale;
   void forgetRendererViewport() => _rendererHasViewport = false;
+  void releasePointerCapture() {
+    _dragging = null;
+    _resizing = false;
+  }
+
   DeskApp? _dragging;
   bool _resizing = false;
   List<DeskWindow> get windows => List.unmodifiable(_windows);
   DeskApp? get activeApp => _windows.where((w) => !w.minimized).lastOrNull?.app;
+  Offset? get browserPointerPosition {
+    if (activeApp != DeskApp.browser) return null;
+    final window = _find(DeskApp.browser);
+    if (window == null || window.minimized) return null;
+    final r = window.visibleRect;
+    final body = Rect.fromLTRB(
+      r.left + 1,
+      r.top + 109,
+      r.right - 1,
+      r.bottom - 33,
+    );
+    if (!body.contains(cursor)) return null;
+    return Offset(
+      (cursor.dx - body.left) / body.width,
+      (cursor.dy - body.top) / body.height,
+    );
+  }
 
   void dispatch(Map<String, Object?> action) {
     if (forwardAction case final forward?) {
@@ -189,7 +211,7 @@ class WorkspaceController extends ChangeNotifier {
         _fitWindows();
         layoutEpoch++;
       case 'safeInset':
-        safeInset = _number(action['value'], desktopSafeInset).clamp(16, 96);
+        safeInset = _number(action['value'], desktopSafeInset).clamp(4, 96);
         _fitWindows();
         layoutEpoch++;
       case 'arrange':
@@ -276,6 +298,9 @@ class WorkspaceController extends ChangeNotifier {
       case 'browserScroll':
         _browserCommand('scroll', dy: _number(action['dy']));
         persistent = false;
+      case 'browserExitFullscreen':
+        _browserCommand('exitFullscreen');
+        persistent = false;
       case 'browserText':
         if (action['text'] is! String) return;
         final value = action['text'] as String;
@@ -319,8 +344,7 @@ class WorkspaceController extends ChangeNotifier {
         }
         persistent = false;
       case 'pointerUp':
-        _dragging = null;
-        _resizing = false;
+        releasePointerCapture();
         persistent = false;
         sceneChanged = false;
       case 'click':
@@ -549,6 +573,7 @@ class WorkspaceController extends ChangeNotifier {
   Map<String, Object?> snapshot({bool forStorage = false}) => {
     'schemaVersion': 1,
     'layoutVersion': 4,
+    'dockVersion': 1,
     'viewportHeight': viewportHeight,
     'cursorScale': cursorScale,
     'layoutEpoch': layoutEpoch,
@@ -578,7 +603,10 @@ class WorkspaceController extends ChangeNotifier {
     cursorScale = _number(json['cursorScale'], 1).clamp(.7, 1.5);
     autoTile = false;
     viewportHeight = _number(json['viewportHeight'], 900).clamp(320, 8640);
-    safeInset = _number(json['safeInset'], desktopSafeInset).clamp(16, 96);
+    safeInset = _number(json['safeInset'], desktopSafeInset).clamp(4, 96);
+    if (json['dockVersion'] != 1) {
+      safeInset = desktopSafeInset;
+    }
     layoutEpoch = _number(json['layoutEpoch']).toInt();
     displayAspect = _number(json['displayAspect'], 1.6).clamp(.6, 4.0);
     keyboardLanguage =

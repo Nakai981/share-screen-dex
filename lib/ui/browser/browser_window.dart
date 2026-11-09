@@ -91,6 +91,7 @@ class BrowserWindow extends StatelessWidget {
             : kIsWeb && needsYouTubeExternalPage(workspace.browserUrl)
             ? _YouTubeWebPage(workspace: workspace)
             : browserSurface(
+                workspace: workspace,
                 url: workspace.browserUrl,
                 reload: workspace.browserReload,
                 interactive:
@@ -178,10 +179,12 @@ class BrowserAddressField extends StatefulWidget {
     required this.workspace,
     required this.id,
     this.focusNode,
+    this.onSubmitted,
   });
   final WorkspaceController workspace;
   final String id;
   final FocusNode? focusNode;
+  final VoidCallback? onSubmitted;
   @override
   State<BrowserAddressField> createState() => _BrowserAddressFieldState();
 }
@@ -207,6 +210,7 @@ class _BrowserAddressFieldState extends State<BrowserAddressField> {
   void _go() {
     widget.workspace.dispatch({'type': 'browserNavigate', 'url': text.text});
     FocusScope.of(context).unfocus();
+    if (widget.workspace.browserError == null) widget.onSubmitted?.call();
   }
 
   @override

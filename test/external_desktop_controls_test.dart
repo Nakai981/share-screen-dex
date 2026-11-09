@@ -151,8 +151,8 @@ void main() {
       await tester.pumpAndSettle();
       final bar = tester.getRect(find.byKey(const ValueKey('desktop-taskbar')));
       expect(bar.bottom, lessThanOrEqualTo(900 - desktopSafeInset));
-      expect(bar.width, 248);
-      expect(bar.height, 56);
+      expect(bar.width, 320);
+      expect(bar.height, 72);
       await tester.tap(find.byKey(const ValueKey('dock-browser')));
       await tester.pumpAndSettle();
       expect(workspace.activeApp, DeskApp.browser);

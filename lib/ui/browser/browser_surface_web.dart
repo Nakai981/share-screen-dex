@@ -7,6 +7,7 @@ import 'package:web/web.dart' as web;
 import '../../domain/workspace.dart';
 import 'browser_content.dart';
 import 'browser_web_navigation.dart';
+import 'browser_desktop_script.dart';
 
 Widget browserSurface({
   required String url,
@@ -14,6 +15,7 @@ Widget browserSurface({
   required bool interactive,
   required void Function(String url, bool replace) onNavigate,
   Map<String, Object?>? command,
+  WorkspaceController? workspace,
 }) => _WebSurface(
   url: url,
   reload: reload,
@@ -62,7 +64,12 @@ class _WebSurfaceState extends State<_WebSurface> {
     if (widget.url == browserDemo) {
       // This HTML is bundled application code, not user-provided markup.
       frame!.removeAttribute('sandbox');
-      frame!.srcdoc = browserDemoHtml.toJS;
+      frame!.srcdoc = browserDemoHtml
+          .replaceFirst(
+            '</head>',
+            '<script>$browserDesktopFullscreenScript</script></head>',
+          )
+          .toJS;
     } else {
       frame!.setAttribute(
         'sandbox',

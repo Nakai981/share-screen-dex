@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 import '../../domain/workspace.dart';
 import '../theme.dart';
 import 'browser_content.dart';
 import 'browser_navigation_policy.dart';
+import 'browser_desktop_script.dart';
 
 Widget browserSurface({
   required String url,
@@ -16,12 +18,14 @@ Widget browserSurface({
   required bool interactive,
   required void Function(String url, bool replace) onNavigate,
   Map<String, Object?>? command,
+  WorkspaceController? workspace,
 }) => _NativeSurface(
   url: url,
   reload: reload,
   interactive: interactive,
   onNavigate: onNavigate,
   command: command,
+  workspace: workspace,
 );
 
 class _NativeSurface extends StatefulWidget {
@@ -31,12 +35,14 @@ class _NativeSurface extends StatefulWidget {
     required this.interactive,
     required this.onNavigate,
     this.command,
+    this.workspace,
   });
   final String url;
   final int reload;
   final bool interactive;
   final void Function(String url, bool replace) onNavigate;
   final Map<String, Object?>? command;
+  final WorkspaceController? workspace;
   @override
   State<_NativeSurface> createState() => _NativeSurfaceState();
 }
@@ -47,10 +53,31 @@ class _NativeSurfaceState extends State<_NativeSurface> {
   String? loadedUrl;
   int progress = 0;
   bool pageLoading = false;
+  Timer? pointerTimer;
+  Offset? previousPointer;
+  bool sentPointer = false;
   @override
   void initState() {
     super.initState();
+    widget.workspace?.pointerChanges.addListener(_pointerChanged);
     unawaited(_initialize());
+  }
+
+  void _pointerChanged() {
+    if (!mounted) return;
+    pointerTimer ??= Timer(const Duration(milliseconds: 32), () {
+      pointerTimer = null;
+      if (!mounted || controller == null) return;
+      final point = widget.workspace?.browserPointerPosition;
+      if (sentPointer && point == previousPointer) return;
+      sentPointer = true;
+      previousPointer = point;
+      unawaited(
+        controller!
+            .runJavaScript(browserPointerScript(point?.dx, point?.dy))
+            .catchError((_) {}),
+      );
+    });
   }
 
   Future<void> _initialize() async {
@@ -73,6 +100,9 @@ class _NativeSurfaceState extends State<_NativeSurface> {
       controller = next;
       await next.setJavaScriptMode(JavaScriptMode.unrestricted);
       await next.setBackgroundColor(Colors.white);
+      if (next.platform case final AndroidWebViewController android) {
+        await android.setMediaPlaybackRequiresUserGesture(false);
+      }
       String? userAgent;
       try {
         userAgent = await next.getUserAgent();
@@ -92,22 +122,33 @@ class _NativeSurfaceState extends State<_NativeSurface> {
           },
           onPageStarted: (url) {
             if (!mounted) return;
+            unawaited(
+              controller
+                      ?.runJavaScript(browserDesktopFullscreenScript)
+                      .catchError((_) {}) ??
+                  Future<void>.value(),
+            );
             if (url.startsWith('http://') || url.startsWith('https://')) {
               loadedUrl = url;
               if (url != widget.url) widget.onNavigate(url, true);
             }
           },
           onPageFinished: (_) {
+            sentPointer = false;
             pageLoading = false;
             if (mounted) {
               setState(() => progress = 100);
               unawaited(
                 controller
-                        ?.runJavaScript(browserInAppNavigationScript)
+                        ?.runJavaScript(
+                          browserInAppNavigationScript +
+                              browserDesktopFullscreenScript,
+                        )
                         .catchError((_) {}) ??
                     Future<void>.value(),
               );
             }
+            _pointerChanged();
           },
           onWebResourceError: (failure) {
             if (failure.errorCode == -999) {
@@ -201,6 +242,10 @@ class _NativeSurfaceState extends State<_NativeSurface> {
   @override
   void didUpdateWidget(_NativeSurface oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (widget.workspace != oldWidget.workspace) {
+      oldWidget.workspace?.pointerChanges.removeListener(_pointerChanged);
+      widget.workspace?.pointerChanges.addListener(_pointerChanged);
+    }
     if (widget.url != loadedUrl || widget.reload != oldWidget.reload) {
       unawaited(_navigate());
     }
@@ -217,6 +262,8 @@ class _NativeSurfaceState extends State<_NativeSurface> {
 
   @override
   void dispose() {
+    pointerTimer?.cancel();
+    widget.workspace?.pointerChanges.removeListener(_pointerChanged);
     controller = null;
     super.dispose();
   }

@@ -8,6 +8,9 @@ import 'browser/browser_window.dart';
 import 'theme.dart';
 import 'keyboard_preferences.dart';
 import 'hardware_controller_page.dart';
+import 'touchpad.dart';
+
+export 'touchpad.dart' show Touchpad;
 
 class ControllerPage extends StatefulWidget {
   const ControllerPage({super.key, required this.session});
@@ -22,11 +25,25 @@ class _ControllerPageState extends State<ControllerPage> {
   double _sensitivity = 1;
   WorkspaceController get workspace => widget.session.workspace;
   Size? _canvasSize;
+  bool _wasPresenting = false;
+  bool _showRemote = false;
   @override
   void initState() {
     super.initState();
     _canvasSize = workspace.canvasSize;
     workspace.addListener(_layoutChanged);
+    _wasPresenting = widget.session.status.presenting;
+    _showRemote = _wasPresenting;
+    widget.session.addListener(_connectionChanged);
+  }
+
+  void _connectionChanged() {
+    final presenting = widget.session.status.presenting;
+    if (presenting == _wasPresenting) return;
+    setState(() {
+      _wasPresenting = presenting;
+      _showRemote = presenting;
+    });
   }
 
   void _layoutChanged() {
@@ -38,6 +55,7 @@ class _ControllerPageState extends State<ControllerPage> {
   @override
   void dispose() {
     workspace.removeListener(_layoutChanged);
+    widget.session.removeListener(_connectionChanged);
     super.dispose();
   }
 
@@ -53,56 +71,76 @@ class _ControllerPageState extends State<ControllerPage> {
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.session,
-    builder: (context, _) => Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1600),
-            child: Column(
-              children: [
-                _header(),
-                Expanded(
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final wide = constraints.maxWidth >= 980;
-                      if (wide) {
-                        return Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            SizedBox(
-                              width: 394,
-                              child: SingleChildScrollView(
-                                padding: const EdgeInsets.fromLTRB(
-                                  28,
-                                  20,
-                                  28,
-                                  24,
-                                ),
-                                child: _controls(showPreview: false),
+    builder: (context, _) => _showRemote && widget.session.status.presenting
+        ? PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (didPop, _) {
+              if (!didPop) setState(() => _showRemote = false);
+            },
+            child: HardwareControllerPage(
+              workspace: workspace,
+              fullScreen: true,
+              displayName: widget.session.status.name,
+              onLeave: () => setState(() => _showRemote = false),
+            ),
+          )
+        : Scaffold(
+            body: SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1600),
+                  child: Column(
+                    children: [
+                      _header(),
+                      Expanded(
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            final wide = constraints.maxWidth >= 980;
+                            if (wide) {
+                              return Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  SizedBox(
+                                    width: 394,
+                                    child: SingleChildScrollView(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        28,
+                                        20,
+                                        28,
+                                        24,
+                                      ),
+                                      child: _controls(showPreview: false),
+                                    ),
+                                  ),
+                                  Expanded(child: _largePreview()),
+                                ],
+                              );
+                            }
+                            return SingleChildScrollView(
+                              padding: const EdgeInsets.fromLTRB(
+                                22,
+                                12,
+                                22,
+                                24,
                               ),
-                            ),
-                            Expanded(child: _largePreview()),
-                          ],
-                        );
-                      }
-                      return SingleChildScrollView(
-                        padding: const EdgeInsets.fromLTRB(22, 12, 22, 24),
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 580),
-                            child: _controls(showPreview: true),
-                          ),
+                              child: Center(
+                                child: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 580,
+                                  ),
+                                  child: _controls(showPreview: true),
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      );
-                    },
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
-    ),
   );
 
   Widget _header() => Container(
@@ -191,11 +229,17 @@ class _ControllerPageState extends State<ControllerPage> {
               'Chuột & bàn phím',
               style: TextStyle(fontSize: 11),
             ),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => HardwareControllerPage(workspace: workspace),
-              ),
-            ),
+            onPressed: () {
+              if (widget.session.status.presenting) {
+                setState(() => _showRemote = true);
+                return;
+              }
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => HardwareControllerPage(workspace: workspace),
+                ),
+              );
+            },
           ),
           TextButton.icon(
             key: const ValueKey('recover-desktop'),
@@ -738,7 +782,7 @@ class _ControllerPageState extends State<ControllerPage> {
               Slider(
                 key: const ValueKey('display-safe-inset'),
                 value: workspace.safeInset,
-                min: 16,
+                min: 4,
                 max: 96,
                 divisions: 10,
                 onChanged: (value) {
@@ -776,8 +820,8 @@ class _ControllerPageState extends State<ControllerPage> {
               const SizedBox(height: 12),
               Text(
                 widget.session.status.nativeAvailable
-                    ? 'SideScreen 0.6 · Màn hình có dây'
-                    : 'SideScreen 0.6 · Chế độ xem thử',
+                    ? 'SideScreen 0.7 · Màn hình có dây'
+                    : 'SideScreen 0.7 · Chế độ xem thử',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontSize: 10, color: AppColors.muted),
               ),
@@ -902,139 +946,6 @@ class _Badge extends StatelessWidget {
       style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w600),
     ),
   );
-}
-
-class Touchpad extends StatefulWidget {
-  const Touchpad({
-    super.key,
-    required this.workspace,
-    required this.dragging,
-    required this.sensitivity,
-  });
-  final WorkspaceController workspace;
-  final bool dragging;
-  final double sensitivity;
-  @override
-  State<Touchpad> createState() => _TouchpadState();
-}
-
-class _TouchpadState extends State<Touchpad> {
-  bool touching = false;
-  Offset _lastLongPosition = Offset.zero;
-  void _move(Offset delta) => widget.workspace.dispatch({
-    'type': 'pointerMove',
-    'dx': delta.dx * 3.5 * widget.sensitivity,
-    'dy': delta.dy * 3.5 * widget.sensitivity,
-  });
-  void _release() {
-    widget.workspace.dispatch({'type': 'pointerUp'});
-    if (mounted) setState(() => touching = false);
-  }
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    label: 'Bàn di chuột. Vuốt để di con trỏ, chạm để chọn, giữ để kéo.',
-    child: GestureDetector(
-      key: const ValueKey('touchpad'),
-      behavior: HitTestBehavior.opaque,
-      onTap: () => widget.workspace.dispatch({'type': 'click'}),
-      onPanStart: (_) {
-        setState(() => touching = true);
-        if (widget.dragging) widget.workspace.dispatch({'type': 'pointerDown'});
-      },
-      onPanUpdate: (details) => _move(details.delta),
-      onPanEnd: (_) => _release(),
-      onPanCancel: _release,
-      onLongPressStart: (details) {
-        setState(() => touching = true);
-        _lastLongPosition = details.localPosition;
-        widget.workspace.dispatch({'type': 'pointerDown'});
-      },
-      onLongPressMoveUpdate: (details) {
-        _move(details.localPosition - _lastLongPosition);
-        _lastLongPosition = details.localPosition;
-      },
-      onLongPressEnd: (_) => _release(),
-      onLongPressCancel: _release,
-      child: AnimatedContainer(
-        duration: MediaQuery.disableAnimationsOf(context)
-            ? Duration.zero
-            : const Duration(milliseconds: 130),
-        height: 222,
-        decoration: BoxDecoration(
-          color: touching ? const Color(0xFFE7EEF8) : const Color(0xFFECF0F4),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: touching
-                ? AppColors.blue.withValues(alpha: .45)
-                : const Color(0xFFDCE3EA),
-          ),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: CustomPaint(
-            painter: const _TouchpadDots(),
-            child: Stack(
-              children: [
-                Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        widget.dragging
-                            ? Icons.open_with_rounded
-                            : Icons.touch_app_outlined,
-                        size: 30,
-                        color: touching
-                            ? AppColors.blue
-                            : const Color(0xFF9BAAB8),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        widget.dragging
-                            ? 'Kéo từ thanh tiêu đề cửa sổ'
-                            : 'Chạm. Vuốt. Làm việc.',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.muted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Positioned(
-                  bottom: 12,
-                  left: 16,
-                  right: 16,
-                  child: Text(
-                    'Giữ rồi vuốt để kéo',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 9, color: Color(0xFF9BAAB8)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-class _TouchpadDots extends CustomPainter {
-  const _TouchpadDots();
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = const Color(0xFFC8D2DC);
-    for (double x = 12; x < size.width; x += 16) {
-      for (double y = 12; y < size.height; y += 16) {
-        canvas.drawCircle(Offset(x, y), .65, paint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_TouchpadDots oldDelegate) => false;
 }
 
 class _ControlButton extends StatelessWidget {

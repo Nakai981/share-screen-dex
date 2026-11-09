@@ -44,25 +44,14 @@ class _DesktopDockState extends State<DesktopDock> {
         fit: BoxFit.fill,
         child: Container(
           key: const ValueKey('desktop-taskbar'),
-          width: 248,
-          height: 56,
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 5),
-          decoration: BoxDecoration(
-            color: const Color(0xF2F5F8F9),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: const Color(0xB3FFFFFF)),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x29102028),
-                blurRadius: 18,
-                offset: Offset(0, 6),
-              ),
-            ],
-          ),
+          width: 320,
+          height: 72,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+          color: Colors.transparent,
           child: Row(
             children: [
               for (var i = 0; i < items.length; i++) ...[
-                if (i > 0) const SizedBox(width: 4),
+                if (i > 0) const SizedBox(width: 8),
                 _DockTile(
                   key: ValueKey('dock-${items[i].$1?.name ?? 'wallpaper'}'),
                   label: items[i].$2,
@@ -159,8 +148,8 @@ class _DockTileState extends State<_DockTile>
           onTapCancel: () => setState(() => pressed = false),
           onTap: widget.onTap,
           child: SizedBox(
-            width: 52,
-            height: 44,
+            width: 64,
+            height: 56,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
@@ -209,30 +198,37 @@ class _DockTileState extends State<_DockTile>
                           Transform.translate(
                             offset: Offset(
                               0,
-                              -5 * hover - 7 * math.sin(math.pi * bounce.value),
+                              -6 * hover - 8 * math.sin(math.pi * bounce.value),
                             ),
                             child: Transform.scale(
                               key: ValueKey('dock-scale-${widget.label}'),
                               scale: pressed ? .9 : 1 + .18 * hover,
                               child: Container(
-                                width: 30,
-                                height: 30,
+                                width: 42,
+                                height: 42,
                                 decoration: BoxDecoration(
                                   color: widget.color,
-                                  borderRadius: BorderRadius.circular(9),
+                                  borderRadius: BorderRadius.circular(13),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x35102028),
+                                      blurRadius: 8,
+                                      offset: Offset(0, 3),
+                                    ),
+                                  ],
                                 ),
                                 child: Icon(
                                   widget.icon,
-                                  size: 21,
+                                  size: 28,
                                   color: Colors.white,
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 5),
                           AnimatedContainer(
                             duration: duration,
-                            width: widget.active ? 10 : 3,
+                            width: widget.active ? 12 : 4,
                             height: 3,
                             decoration: BoxDecoration(
                               color: widget.running

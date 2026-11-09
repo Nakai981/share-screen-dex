@@ -4,6 +4,7 @@ String browserCommandScript(Map<String, Object?> command) =>
     '''
 (() => {
   const c = ${jsonEncode(command)};
+  if (c.type === 'exitFullscreen') { window.__sideScreenExitFullscreen?.(); return; }
   if (c.type === 'scroll') { window.scrollBy({top: c.dy || 0, behavior: 'auto'}); return; }
   if (c.type === 'text') {
     const el = document.activeElement;
@@ -33,8 +34,9 @@ footer{padding-top:34px;color:#74838c;font-size:12px}#echo{min-height:28px;color
 <header><div class="mark">▥</div> SideScreen / Trang thử</header>
 <h1>Một trang web thật.<br>Ngay trong không gian của bạn.</h1>
 <p>Trang HTML này chạy bằng trình duyệt nhúng, có JavaScript, biểu mẫu và nội dung cuộn được.</p>
-<section><h2>Thử tương tác</h2><span class="count" id="count">0</span>
-<button id="counter" onclick="document.getElementById('count').textContent=++window.clickCount">Tăng bộ đếm</button></section>
+<section id="fullscreen-demo"><h2>Thử tương tác</h2><span class="count" id="count">0</span>
+<button id="counter" onclick="document.getElementById('count').textContent=++window.clickCount">Tăng bộ đếm</button>
+<button id="fullscreen-button" onclick="document.fullscreenElement ? document.exitFullscreen() : document.getElementById('fullscreen-demo').requestFullscreen()">Phóng lớn vùng thử</button></section>
 <section><h2>Thử nhập chữ</h2><input id="message" placeholder="Viết một lời chào…" oninput="document.getElementById('echo').textContent=this.value">
 <p id="echo"></p></section>
 <section><h2>Thử mở một website</h2><p>Nhập địa chỉ vào thanh trên cùng để mở website của bạn.</p>

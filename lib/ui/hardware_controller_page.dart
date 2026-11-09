@@ -10,12 +10,22 @@ import 'desktop.dart';
 import 'keyboard_preferences.dart';
 import 'theme.dart';
 import 'cute_cursor.dart';
+import 'touchpad.dart';
 
 /// The iPhone keeps keyboard focus. Its mouse/AssistiveTouch events are mapped
 /// onto the external workspace rather than relying on an interactive scene.
 class HardwareControllerPage extends StatefulWidget {
-  const HardwareControllerPage({super.key, required this.workspace});
+  const HardwareControllerPage({
+    super.key,
+    required this.workspace,
+    this.fullScreen = false,
+    this.onLeave,
+    this.displayName,
+  });
   final WorkspaceController workspace;
+  final bool fullScreen;
+  final VoidCallback? onLeave;
+  final String? displayName;
   @override
   State<HardwareControllerPage> createState() => _HardwareControllerPageState();
 }
@@ -29,6 +39,9 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
   final pageFocus = FocusNode();
   late DeskApp? active;
   late KeyboardLanguage language;
+  bool keyboardVisible = false;
+  bool addressVisible = false;
+  bool dragging = false;
   WorkspaceController get workspace => widget.workspace;
 
   @override
@@ -37,6 +50,11 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
     active = workspace.activeApp;
     language = workspace.keyboardLanguage;
     workspace.addListener(_sync);
+    if (widget.fullScreen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _focusInput();
+      });
+    }
   }
 
   void _sync() {
@@ -47,6 +65,11 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
         active = workspace.activeApp;
         language = workspace.keyboardLanguage;
       });
+      if (widget.fullScreen) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _focusInput();
+        });
+      }
     }
   }
 
@@ -59,6 +82,7 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
   }
 
   void _address() {
+    if (widget.fullScreen) setState(() => addressVisible = true);
     _open(DeskApp.browser);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) addressFocus.requestFocus();
@@ -66,8 +90,237 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
   }
 
   void _selected() {
+    if (widget.fullScreen) {
+      if (addressVisible) setState(() => addressVisible = false);
+      if (workspace.activeApp == DeskApp.browser) pageText.clear();
+      _focusInput();
+      return;
+    }
     if (workspace.activeApp == DeskApp.notes) notesFocus.requestFocus();
   }
+
+  void _focusInput() {
+    if (addressVisible) {
+      addressFocus.requestFocus();
+    } else if (workspace.activeApp == DeskApp.notes) {
+      notesFocus.requestFocus();
+    } else if (workspace.activeApp == DeskApp.browser) {
+      pageFocus.requestFocus();
+    } else {
+      remoteFocus.requestFocus();
+    }
+  }
+
+  void _toggleKeyboard() {
+    if (workspace.activeApp != DeskApp.notes &&
+        workspace.activeApp != DeskApp.browser) {
+      _open(DeskApp.notes);
+    }
+    // Reopen the native text client when leaving keyboardType.none. Merely
+    // updating its config can leave Android's served editor at TYPE_NULL.
+    FocusScope.of(context).unfocus();
+    FocusManager.instance.applyFocusChangesIfNeeded();
+    setState(() => keyboardVisible = !keyboardVisible);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _focusInput();
+      FocusManager.instance.applyFocusChangesIfNeeded();
+      SystemChannels.textInput.invokeMethod<void>(
+        keyboardVisible ? 'TextInput.show' : 'TextInput.hide',
+      );
+    });
+  }
+
+  Widget _fullScreenBody() => LayoutBuilder(
+    builder: (context, constraints) {
+      final typing = MediaQuery.viewInsetsOf(context).bottom > 0;
+      return Column(
+        key: const ValueKey('fullscreen-remote-controller'),
+        children: [
+          SizedBox(
+            height: 48,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 18, right: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.circle, size: 7, color: Color(0xFF358677)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      widget.displayName ?? 'Bàn di chuột',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    key: const ValueKey('remote-keyboard-toggle'),
+                    tooltip: keyboardVisible ? 'Ẩn bàn phím' : 'Hiện bàn phím',
+                    onPressed: _toggleKeyboard,
+                    icon: Icon(
+                      keyboardVisible
+                          ? Icons.keyboard_hide_outlined
+                          : Icons.keyboard_alt_outlined,
+                      size: 22,
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    tooltip: 'Điều khiển',
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'address':
+                          _address();
+                        case 'minimize':
+                          _windowAction('minimize');
+                        case 'maximize':
+                          _windowAction('maximize');
+                        case 'close':
+                          _windowAction('close');
+                        case 'exitFullscreen':
+                          workspace.dispatch({'type': 'browserExitFullscreen'});
+                        case 'settings':
+                          widget.onLeave?.call();
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'address',
+                        child: Text('Nhập địa chỉ website'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'exitFullscreen',
+                        child: Text('Thoát video phóng lớn'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'maximize',
+                        child: Text('Phóng to / khôi phục'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'minimize',
+                        child: Text('Thu nhỏ cửa sổ'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'close',
+                        child: Text('Đóng cửa sổ'),
+                      ),
+                      if (widget.onLeave != null)
+                        const PopupMenuItem(
+                          value: 'settings',
+                          child: Text('Về bảng điều khiển'),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Touchpad(
+                workspace: workspace,
+                dragging: dragging,
+                sensitivity: 1,
+                height: null,
+                onSelect: _selected,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+            child: addressVisible
+                ? BrowserAddressField(
+                    workspace: workspace,
+                    id: 'remote',
+                    focusNode: addressFocus,
+                    onSubmitted: () {
+                      setState(() => addressVisible = false);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) _focusInput();
+                      });
+                    },
+                  )
+                : active == DeskApp.notes || active == DeskApp.browser
+                ? TextField(
+                    key: ValueKey(
+                      active == DeskApp.notes
+                          ? 'remote-notes'
+                          : 'remote-page-input',
+                    ),
+                    controller: active == DeskApp.notes ? notes : pageText,
+                    focusNode: active == DeskApp.notes ? notesFocus : pageFocus,
+                    minLines: 1,
+                    maxLines: 2,
+                    keyboardType: keyboardVisible
+                        ? TextInputType.multiline
+                        : TextInputType.none,
+                    hintLocales: language.hintLocales,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      hintText: active == DeskApp.notes
+                          ? 'Gõ vào Ghi chú'
+                          : 'Chọn ô trên website rồi gõ ở đây',
+                      prefixIcon: Icon(
+                        active == DeskApp.notes
+                            ? Icons.edit_note_rounded
+                            : Icons.public_rounded,
+                        size: 20,
+                      ),
+                    ),
+                    onChanged: (value) => workspace.dispatch({
+                      'type': active == DeskApp.notes ? 'notes' : 'browserText',
+                      'text': value,
+                    }),
+                  )
+                : TextButton.icon(
+                    onPressed: () => _open(DeskApp.notes),
+                    icon: const Icon(Icons.edit_note_rounded),
+                    label: const Text('Mở Ghi chú để nhập chữ'),
+                  ),
+          ),
+          if (!typing && constraints.maxHeight > 240)
+            SizedBox(
+              height: 48,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  IconButton(
+                    tooltip: 'Ghi chú',
+                    onPressed: () => _open(DeskApp.notes),
+                    icon: const Icon(Icons.edit_note_rounded, size: 23),
+                  ),
+                  IconButton(
+                    tooltip: 'Trình duyệt',
+                    onPressed: () => _open(DeskApp.browser),
+                    icon: const Icon(Icons.public_rounded, size: 22),
+                  ),
+                  IconButton(
+                    tooltip: 'Bắt đầu',
+                    onPressed: () => _open(DeskApp.guide),
+                    icon: const Icon(Icons.apps_rounded, size: 22),
+                  ),
+                  IconButton(
+                    tooltip: 'Kéo cửa sổ',
+                    isSelected: dragging,
+                    onPressed: () => setState(() => dragging = !dragging),
+                    icon: const Icon(Icons.open_with_rounded, size: 22),
+                  ),
+                  IconButton(
+                    tooltip: 'Về giữa',
+                    onPressed: () =>
+                        workspace.dispatch({'type': 'centerPointer'}),
+                    icon: const Icon(Icons.my_location_rounded, size: 22),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      );
+    },
+  );
 
   void _sendPage() {
     workspace.dispatch({'type': 'browserText', 'text': pageText.text});
@@ -109,7 +362,7 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
 
   @override
   void dispose() {
-    workspace.dispatch({'type': 'pointerUp'});
+    workspace.releasePointerCapture();
     workspace.removeListener(_sync);
     for (final node in [remoteFocus, notesFocus, addressFocus, pageFocus]) {
       node.dispose();
@@ -165,122 +418,137 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
       },
       const SingleActivator(LogicalKeyboardKey.tab, alt: true): () =>
           workspace.dispatch({'type': 'cycleWindow'}),
+      const SingleActivator(LogicalKeyboardKey.escape): () =>
+          workspace.dispatch({'type': 'browserExitFullscreen'}),
     },
     child: Focus(
       focusNode: remoteFocus,
       autofocus: true,
       onKeyEvent: _key,
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Chuột & bàn phím', style: TextStyle(fontSize: 17)),
-          actions: [
-            IconButton(
-              tooltip: 'Sắp xếp cửa sổ',
-              onPressed: () => workspace.dispatch({'type': 'arrange'}),
-              icon: const Icon(Icons.view_column_outlined),
-            ),
-            IconButton(
-              tooltip: 'Khôi phục taskbar',
-              onPressed: () => workspace.dispatch({'type': 'recoverDesktop'}),
-              icon: const Icon(Icons.restore_rounded),
-            ),
-          ],
-        ),
-        body: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'Điều khiển desktop ngoài',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+        appBar: widget.fullScreen
+            ? null
+            : AppBar(
+                title: const Text(
+                  'Chuột & bàn phím',
+                  style: TextStyle(fontSize: 17),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Trên iPhone: bật Cài đặt → Trợ năng → Cảm ứng → AssistiveTouch, rồi kết nối chuột trong Thiết bị. Di chuyển/bấm trong vùng bên dưới để điều khiển màn hình ngoài.',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.muted,
-                    height: 1.7,
+                actions: [
+                  IconButton(
+                    tooltip: 'Sắp xếp cửa sổ',
+                    onPressed: () => workspace.dispatch({'type': 'arrange'}),
+                    icon: const Icon(Icons.view_column_outlined),
                   ),
-                ),
-                const SizedBox(height: 16),
-                ListenableBuilder(
-                  listenable: workspace,
-                  builder: (context, _) => AspectRatio(
-                    aspectRatio: workspace.canvasSize.aspectRatio,
-                    child: RemotePointerSurface(
-                      workspace: workspace,
-                      onSelect: _selected,
-                      onBegin: remoteFocus.requestFocus,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Sơ đồ cửa sổ · Bấm để chọn, kéo thanh tiêu đề để di chuyển. Với AssistiveTouch, bấm/giữ-kéo trên vùng này; iOS có thể không gửi chuyển động hover cho ứng dụng.',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: AppColors.muted,
-                    height: 1.6,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                if (active == DeskApp.notes)
-                  TextField(
-                    key: const ValueKey('hardware-notes'),
-                    controller: notes,
-                    focusNode: notesFocus,
-                    minLines: 3,
-                    maxLines: 6,
-                    maxLength: 50000,
-                    keyboardType: TextInputType.multiline,
-                    hintLocales: language.hintLocales,
-                    textCapitalization: TextCapitalization.sentences,
-                    decoration: const InputDecoration(
-                      labelText: 'Gõ vào Ghi chú bằng bàn phím Bluetooth',
-                      counterText: '',
-                    ),
-                    onChanged: (value) =>
-                        workspace.dispatch({'type': 'notes', 'text': value}),
-                  ),
-                if (active == DeskApp.browser) ...[
-                  BrowserAddressField(
-                    workspace: workspace,
-                    id: 'hardware',
-                    focusNode: addressFocus,
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    key: const ValueKey('hardware-page-input'),
-                    controller: pageText,
-                    focusNode: pageFocus,
-                    hintLocales: language.hintLocales,
-                    textInputAction: TextInputAction.send,
-                    decoration: InputDecoration(
-                      labelText: 'Chữ gửi vào ô đã chọn trên trang',
-                      suffixIcon: IconButton(
-                        tooltip: 'Gửi vào trang',
-                        onPressed: _sendPage,
-                        icon: const Icon(Icons.send_rounded),
-                      ),
-                    ),
-                    onSubmitted: (_) => _sendPage(),
+                  IconButton(
+                    tooltip: 'Khôi phục taskbar',
+                    onPressed: () =>
+                        workspace.dispatch({'type': 'recoverDesktop'}),
+                    icon: const Icon(Icons.restore_rounded),
                   ),
                 ],
-                const SizedBox(height: 16),
-                const Text(
-                  'Ctrl/⌘ + 1, 2, 3: mở ứng dụng · Ctrl/⌘ + L: địa chỉ · Ctrl/⌘ + W: đóng · Ctrl/⌘ + M: thu nhỏ · Ctrl/⌘ + Shift + T: xếp cạnh nhau · Alt + Tab: đổi cửa sổ.',
-                  style: TextStyle(
-                    fontSize: 10,
-                    color: AppColors.muted,
-                    height: 1.7,
+              ),
+        body: SafeArea(
+          child: widget.fullScreen
+              ? _fullScreenBody()
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Điều khiển desktop ngoài',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Trên iPhone: bật Cài đặt → Trợ năng → Cảm ứng → AssistiveTouch, rồi kết nối chuột trong Thiết bị. Di chuyển/bấm trong vùng bên dưới để điều khiển màn hình ngoài.',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: AppColors.muted,
+                          height: 1.7,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ListenableBuilder(
+                        listenable: workspace,
+                        builder: (context, _) => AspectRatio(
+                          aspectRatio: workspace.canvasSize.aspectRatio,
+                          child: RemotePointerSurface(
+                            workspace: workspace,
+                            onSelect: _selected,
+                            onBegin: remoteFocus.requestFocus,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Sơ đồ cửa sổ · Bấm để chọn, kéo thanh tiêu đề để di chuyển. Với AssistiveTouch, bấm/giữ-kéo trên vùng này; iOS có thể không gửi chuyển động hover cho ứng dụng.',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.muted,
+                          height: 1.6,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      if (active == DeskApp.notes)
+                        TextField(
+                          key: const ValueKey('hardware-notes'),
+                          controller: notes,
+                          focusNode: notesFocus,
+                          minLines: 3,
+                          maxLines: 6,
+                          maxLength: 50000,
+                          keyboardType: TextInputType.multiline,
+                          hintLocales: language.hintLocales,
+                          textCapitalization: TextCapitalization.sentences,
+                          decoration: const InputDecoration(
+                            labelText: 'Gõ vào Ghi chú bằng bàn phím Bluetooth',
+                            counterText: '',
+                          ),
+                          onChanged: (value) => workspace.dispatch({
+                            'type': 'notes',
+                            'text': value,
+                          }),
+                        ),
+                      if (active == DeskApp.browser) ...[
+                        BrowserAddressField(
+                          workspace: workspace,
+                          id: 'hardware',
+                          focusNode: addressFocus,
+                        ),
+                        const SizedBox(height: 12),
+                        TextField(
+                          key: const ValueKey('hardware-page-input'),
+                          controller: pageText,
+                          focusNode: pageFocus,
+                          hintLocales: language.hintLocales,
+                          textInputAction: TextInputAction.send,
+                          decoration: InputDecoration(
+                            labelText: 'Chữ gửi vào ô đã chọn trên trang',
+                            suffixIcon: IconButton(
+                              tooltip: 'Gửi vào trang',
+                              onPressed: _sendPage,
+                              icon: const Icon(Icons.send_rounded),
+                            ),
+                          ),
+                          onSubmitted: (_) => _sendPage(),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Ctrl/⌘ + 1, 2, 3: mở ứng dụng · Ctrl/⌘ + L: địa chỉ · Ctrl/⌘ + W: đóng · Ctrl/⌘ + M: thu nhỏ · Ctrl/⌘ + Shift + T: xếp cạnh nhau · Alt + Tab: đổi cửa sổ.',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.muted,
+                          height: 1.7,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          ),
         ),
       ),
     ),

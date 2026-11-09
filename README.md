@@ -2,23 +2,26 @@
 
 Ứng dụng Flutter cho Android/iPhone: khi mở app và có màn hình ngoài được hệ điều hành cấp qua USB-C/HDMI, app mở một không gian làm việc riêng trên màn hình đó. Điện thoại là bàn điều khiển.
 
-## Bản 0.6 đã có
+## Bản 0.7 đã có
 
 - Hai giao diện độc lập: điều khiển trên điện thoại và desktop trên màn hình ngoài.
-- iOS dùng taskbar và con trỏ native ở cấp UIWindow, phía trên cây Flutter/WKWebView. Chúng không phụ thuộc thứ tự ghép lớp của platform view. Cần build lại cả mã Swift và Dart của bản 0.6.
+- iOS đặt taskbar và con trỏ trong một UIWindow trong suốt riêng, cao hơn cửa sổ nội dung/native fullscreen, không nhận chạm hay lấy quyền bàn phím của điện thoại. Cần build lại cả Swift và Dart của bản 0.7; thay đổi iOS chưa được xác nhận trên máy thật trong môi trường Windows này.
 - Con trỏ nhỏ 16×20, màu mint có mặt cười; có chỉnh kích thước trong Tùy chỉnh, lưu cùng phiên.
 - Di chuột chỉ gửi tọa độ qua bridge mới; không gửi lại toàn bộ ghi chú/cửa sổ hay dựng lại nội dung các app trong từng lần di chuyển. Bridge cũ tiếp tục dùng snapshot đầy đủ.
 - Tự kiểm tra màn hình lúc mở app và theo dõi cắm/rút trong lúc chạy.
 - Ba ứng dụng trong desktop: **Ghi chú**, **Trình duyệt** và **Bắt đầu**.
 - Kéo, đổi kích thước, thu nhỏ, phóng to, đóng và mở lại cửa sổ.
 - Chuyển động spring lấy cảm hứng macOS: mở cửa sổ nhẹ từ gần kích thước thật, thu nhỏ/khôi phục về Dock, xếp cạnh nhau và phóng to bằng transform; giữ nội dung khi thu nhỏ. Tôn trọng cài đặt giảm chuyển động của hệ thống.
-- Dock nhỏ 248×56 điểm giao diện, bốn biểu tượng ở giữa mép dưới; chỉ hiện tên khi hover. Kích thước dựa trên vùng hiển thị thực, giữ gọn trên màn hình Full HD, 16:10, ultrawide và 4K. Dock luôn trên các cửa sổ, có khoảng an toàn dưới màn hình.
+- Dock cỡ vừa 320×72 điểm giao diện, biểu tượng 42 điểm, nền hoàn toàn trong suốt, nằm giữa và cách đáy 8 điểm mặc định. Kích thước và khoảng đáy giữ nhất quán trên Full HD, 16:10, ultrawide và 4K. Bản cũ được đặt lại khoảng đáy một lần; sau đó vẫn có thể tùy chỉnh để tránh màn hình bị cắt mép.
 - Cửa sổ mới mở phóng to trong vùng làm việc, chừa Dock và thanh trên. Bấm **Khôi phục** để kéo/resize và chồng các cửa sổ; mở/kích hoạt/đóng app không tự chia ô hay đổi kích thước app khác. Chỉ xếp cạnh nhau khi chủ động chọn lệnh hoặc phím tắt. Phiên cũ chuyển sang chế độ phóng to một lần khi nâng cấp.
-- Nút **Khôi phục desktop** trên điện thoại nâng taskbar vào sâu hơn và phóng to cửa sổ đang chọn. Cài đặt có **Viền an toàn dưới màn hình** từ 16–96 điểm logic cho màn hình/cáp bị cắt mép.
+- Nút **Khôi phục desktop** nâng taskbar vào sâu hơn và phóng to cửa sổ đang chọn. Cài đặt có **Viền an toàn dưới màn hình** từ 4–96 điểm giao diện cho màn hình/cáp bị cắt mép.
+- Kết nối và xuất hình thành công tự chuyển điện thoại sang bàn di chuột toàn màn hình, kèm ô nhập đang sẵn sàng nhận bàn phím vật lý. Nút bàn phím bật/tắt bàn phím hệ thống; có phím tắt, đổi app và nhập địa chỉ. Rút màn hình trở về bảng điều khiển. Menu **Điều khiển → Về bảng điều khiển** mở lại cài đặt mà không tự giành màn hình cho đến lần kết nối tiếp theo.
+- Bàn di chuột nhận hover của chuột không cần nhấn, click, kéo và cuộn, cùng các thao tác vuốt/chạm/giữ-kéo. Trên iPhone, hover còn phụ thuộc sự kiện mà iOS/AssistiveTouch gửi cho app; không khẳng định có thể đọc chuyển động chuột khi hệ thống không cung cấp.
 - Chế độ **Chuột & bàn phím** trên điện thoại: vùng điều khiển tuyệt đối ánh xạ sang desktop, nhận hover/click/drag/cuộn khi hệ điều hành gửi sự kiện; nhập ghi chú và địa chỉ bằng bàn phím vật lý, có phím tắt.
 - Trình duyệt có thanh địa chỉ/tìm kiếm, lùi/tiến, tải lại, trang chủ và trang HTML thử tương tác không cần mạng. Android/iOS dùng WebView; bản web dùng iframe.
 - Tìm kiếm mặc định bằng Google. Google trên bản web có nút mở tab riêng, tránh khung nhúng bị chặn; trên app dùng WebView.
 - Trình duyệt Android/iOS yêu cầu website desktop bằng user agent giữ phiên bản engine của thiết bị. Liên kết thông thường và popup được đưa về cùng WebView; các liên kết mở app YouTube/Facebook và Android intent có địa chỉ web được chuyển sang HTTPS. Scheme app khác bị chặn, không tự mở ứng dụng ngoài. iOS bật phát video inline. Luồng này vẫn cần xác nhận trên iPhone thật.
+- Video/trình phát được phóng lớn trong vùng trình duyệt để giữ Dock, con trỏ và tọa độ điều khiển. Hỗ trợ nút fullscreen YouTube, Fullscreen API và lối vào fullscreen video WebKit thông dụng; Escape, nút ✕ hoặc menu **Thoát video phóng lớn** để thoát. Rê chuột ảo được chuyển thành hover trong WebView với giới hạn khoảng 30 lần/giây, không dựng lại cửa sổ theo từng chuyển động. Các trình phát/iframe khác nguồn có cơ chế riêng vẫn cần kiểm tra theo website.
 - YouTube trên bản web: trang chủ/tìm kiếm/kênh mở bằng nút tab riêng; liên kết video watch/youtu.be/shorts/live dùng trình phát nhúng chính thức, giữ mốc thời gian. Google/Facebook có trang giải thích và nút mở tab riêng khi xem thử trên web. Bản web không vượt qua giới hạn iframe của website.
 - Mặc định phủ kín màn hình ngoài: bố cục thay đổi theo tỷ lệ màn hình, giữ hình ảnh và chữ đúng tỷ lệ. Có thể tắt trong Cài đặt → Phủ kín màn hình ngoài để giữ bố cục 16:10. Bản xem thử có nút Toàn màn hình.
 - Ngôn ngữ nhập theo bàn phím hệ thống; có gợi ý tiếng Việt, Anh, Nhật, Hàn, Trung cho bàn phím Android hỗ trợ. iPhone đổi bộ gõ bằng phím 🌐 của bàn phím đã cài. Giữ vùng ghép dấu và vị trí con trỏ khi đồng bộ ghi chú.
@@ -60,7 +63,7 @@ flutter build apk --debug
 
 APK cài thử: `build/app/outputs/flutter-apk/app-debug.apk`. Đây là bản debug ký bằng khóa phát triển; cấu hình khóa phát hành riêng trước khi đưa lên cửa hàng.
 
-Bản ARM64 0.6: `artifacts/SideScreen-0.6.0-arm64.apk` (tạo cục bộ khi build, không lưu APK trong Git).
+Bản ARM64 0.7: `artifacts/SideScreen-0.7.0-arm64.apk` (tạo cục bộ khi build, không lưu APK trong Git).
 
 Trên Windows, có thể dùng `scripts\build_android.cmd debug` để tự tìm Java đi kèm Android Studio. Bỏ `debug` để build APK release dành cho Android ARM64; bản release này vẫn dùng khóa phát triển của dự án.
 

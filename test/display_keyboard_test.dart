@@ -88,8 +88,9 @@ void main() {
         final dock = tester.getRect(
           find.byKey(const ValueKey('desktop-taskbar')),
         );
-        expect(dock.width, closeTo(248, .01));
-        expect(dock.height, closeTo(56, .01));
+        expect(dock.width, closeTo(320, .01));
+        expect(dock.height, closeTo(72, .01));
+        expect(size.height - dock.bottom, closeTo(8, .01));
         expect(dock.center.dx, closeTo(size.width / 2, .01));
         final browser = find.byKey(const ValueKey('dock-browser'));
         final hitPoint = workspace.dockItem(1).center * (size.height / 900);

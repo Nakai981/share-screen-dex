@@ -83,6 +83,18 @@ void main() {
     );
     await tester.pumpWidget(const SideScreenApp());
     await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('fullscreen-remote-controller')),
+      findsOneWidget,
+    );
+    expect(find.text('HDMI Display'), findsOneWidget);
+    final pad = tester.getRect(find.byKey(const ValueKey('touchpad')));
+    expect(pad.height, greaterThan(300));
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byTooltip('Điều khiển'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Về bảng điều khiển'));
+    await tester.pumpAndSettle();
     expect(find.text('Màn hình đã sẵn sàng'), findsOneWidget);
     expect(find.text('HDMI Display\n1920 × 1080'), findsOneWidget);
     expect(find.text('Bàn điều khiển'), findsOneWidget);

@@ -31,6 +31,7 @@ class ExternalDisplaySceneDelegate: UIResponder, UIWindowSceneDelegate, FlutterS
   var sceneLifeCycleDelegate = FlutterPluginSceneLifeCycleDelegate()
   var window: UIWindow?
   private var engine: FlutterEngine?
+  private var chromeWindow: ExternalDesktopChromeWindow?
 
   func scene(
     _ scene: UIScene,
@@ -43,14 +44,18 @@ class ExternalDisplaySceneDelegate: UIResponder, UIWindowSceneDelegate, FlutterS
     let nextEngine = ExternalDisplayCoordinator.shared.connect(windowScene)
     engine = nextEngine
     sceneLifeCycleDelegate.registerSceneLifeCycle(with: nextEngine)
-    let nextWindow = ExternalWorkspaceWindow(windowScene: windowScene)
+    let nextWindow = UIWindow(windowScene: windowScene)
     nextWindow.frame = windowScene.coordinateSpace.bounds
     nextWindow.rootViewController = FlutterViewController(engine: nextEngine, nibName: nil, bundle: nil)
     nextWindow.backgroundColor = UIColor(red: 23/255, green: 58/255, blue: 70/255, alpha: 1)
     window = nextWindow
     nextWindow.isHidden = false
-    nextWindow.installDesktopOverlay()
-    ExternalDisplayCoordinator.shared.attachOverlay(nextWindow.desktopOverlay)
+    let chrome = ExternalDesktopChromeWindow(windowScene: windowScene)
+    chrome.frame = windowScene.coordinateSpace.bounds
+    chrome.installDesktopOverlay()
+    chromeWindow = chrome
+    chrome.isHidden = false
+    ExternalDisplayCoordinator.shared.attachOverlay(chrome.desktopOverlay)
     // Forward plugin lifecycle without FlutterSceneDelegate's legacy migration,
     // which can replace this window with the phone's root view controller.
     sceneLifeCycleDelegate.scene(scene, willConnectTo: session, options: connectionOptions)
@@ -63,6 +68,9 @@ class ExternalDisplaySceneDelegate: UIResponder, UIWindowSceneDelegate, FlutterS
 
   func sceneDidDisconnect(_ scene: UIScene) {
     sceneLifeCycleDelegate.sceneDidDisconnect(scene)
+    chromeWindow?.isHidden = true
+    chromeWindow?.rootViewController = nil
+    chromeWindow = nil
     window?.isHidden = true
     window?.rootViewController = nil
     window = nil
@@ -72,12 +80,20 @@ class ExternalDisplaySceneDelegate: UIResponder, UIWindowSceneDelegate, FlutterS
   }
 }
 
-/// Keep desktop chrome outside FlutterView's native-platform-view subtree.
-/// WKWebView and Flutter's compositing overlays cannot cover this sibling view.
-final class ExternalWorkspaceWindow: UIWindow {
+/// A non-key, touch-transparent window also stays above WebKit's native
+/// fullscreen presentation, which can use a different content window.
+final class ExternalDesktopChromeWindow: UIWindow {
   let desktopOverlay = ExternalDesktopOverlay(frame: .zero)
 
   func installDesktopOverlay() {
+    windowLevel = UIWindow.Level(rawValue: UIWindow.Level.alert.rawValue + 1)
+    backgroundColor = .clear
+    isUserInteractionEnabled = false
+    if rootViewController == nil {
+      let controller = UIViewController()
+      controller.view.backgroundColor = .clear
+      rootViewController = controller
+    }
     if desktopOverlay.superview !== self { addSubview(desktopOverlay) }
     if desktopOverlay.frame != bounds { desktopOverlay.frame = bounds }
     if subviews.last !== desktopOverlay { bringSubviewToFront(desktopOverlay) }
@@ -87,6 +103,8 @@ final class ExternalWorkspaceWindow: UIWindow {
     super.layoutSubviews()
     installDesktopOverlay()
   }
+
+  override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? { nil }
 }
 
 final class ExternalDesktopOverlay: UIView {
@@ -115,9 +133,7 @@ final class ExternalDesktopOverlay: UIView {
     isUserInteractionEnabled = false
     accessibilityElementsHidden = true
     backgroundColor = .clear
-    taskbar.backgroundColor = UIColor(red: 245/255, green: 248/255, blue: 249/255, alpha: 0.98)
-    taskbar.layer.borderColor = UIColor.white.withAlphaComponent(0.6).cgColor
-    taskbar.layer.borderWidth = 1
+    taskbar.backgroundColor = .clear
     addSubview(taskbar)
     brand.text = "▥  SideScreen"
     brand.textColor = UIColor(red: 24/255, green: 49/255, blue: 63/255, alpha: 1)
@@ -185,10 +201,10 @@ final class ExternalDesktopOverlay: UIView {
     CGPoint(x: (bounds.width - logicalWidth * scale) / 2, y: (bounds.height - 900 * scale) / 2)
   }
   private var dockUnit: CGFloat {
-    min(900 / min(8640, max(320, number("viewportHeight", fallback: 900))), (logicalWidth - 32) / 248)
+    min(900 / min(8640, max(320, number("viewportHeight", fallback: 900))), (logicalWidth - 16) / 320)
   }
-  private var barLeft: CGFloat { (logicalWidth - 248 * dockUnit) / 2 }
-  private var barTop: CGFloat { 900 - min(96, max(16, number("safeInset", fallback: 32))) - 56 * dockUnit }
+  private var barLeft: CGFloat { (logicalWidth - 320 * dockUnit) / 2 }
+  private var barTop: CGFloat { 900 - (min(96, max(4, number("safeInset", fallback: 8))) + 72) * dockUnit }
 
   private func updateChrome() {
     guard scale > 0 else { return }
@@ -202,17 +218,17 @@ final class ExternalDesktopOverlay: UIView {
     let unit = dockUnit * s
     CATransaction.begin()
     CATransaction.setDisableActions(true)
-    taskbar.frame = CGRect(x: origin.x + barLeft * s, y: origin.y + barTop * s, width: 248 * unit, height: 56 * unit)
+    taskbar.frame = CGRect(x: origin.x + barLeft * s, y: origin.y + barTop * s, width: 320 * unit, height: 72 * unit)
     taskbar.layer.cornerRadius = 18 * unit
     brand.isHidden = true
     arrange.isHidden = true
     for i in 0..<4 {
-      let x = 14 + CGFloat(i) * 56
+      let x = 20 + CGFloat(i) * 72
       icons[i].transform = .identity
-      icons[i].frame = CGRect(x: (x + 11) * unit, y: 9.5 * unit, width: 30 * unit, height: 30 * unit)
-      icons[i].layer.cornerRadius = 9 * unit
-      icons[i].preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 20 * unit, weight: .medium)
-      labels[i].frame = CGRect(x: (x + 26 - 50) * unit, y: -31 * unit, width: 100 * unit, height: 25 * unit)
+      icons[i].frame = CGRect(x: (x + 11) * unit, y: 11 * unit, width: 42 * unit, height: 42 * unit)
+      icons[i].layer.cornerRadius = 13 * unit
+      icons[i].preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 28 * unit, weight: .medium)
+      labels[i].frame = CGRect(x: (x + 32 - 50) * unit, y: -29 * unit, width: 100 * unit, height: 25 * unit)
       labels[i].font = .systemFont(ofSize: 10 * unit, weight: .medium)
       labels[i].textColor = .white
       labels[i].backgroundColor = UIColor(red: 24/255, green: 49/255, blue: 63/255, alpha: 1)
@@ -220,8 +236,8 @@ final class ExternalDesktopOverlay: UIView {
       labels[i].clipsToBounds = true
       labels[i].isHidden = true
       indicators[i].isHidden = !running.contains(names[i])
-      let width: CGFloat = active == names[i] ? 10 : 3
-      indicators[i].frame = CGRect(x: (x + 26 - width / 2) * unit, y: 43.5 * unit, width: width * unit, height: 3 * unit)
+      let width: CGFloat = active == names[i] ? 12 : 4
+      indicators[i].frame = CGRect(x: (x + 32 - width / 2) * unit, y: 58 * unit, width: width * unit, height: 3 * unit)
       indicators[i].layer.cornerRadius = 1.5 * unit
     }
     hoverIndex = nil
@@ -285,13 +301,13 @@ final class ExternalDesktopOverlay: UIView {
     cursorView.layer.setAffineTransform(CGAffineTransform(scaleX: cursorScale * 0.8, y: cursorScale * 20 / 24))
     CATransaction.commit()
     let index = (0..<4).first { i in
-      CGRect(x: barLeft + (14 + CGFloat(i) * 56) * dockUnit, y: barTop + 6 * dockUnit, width: 52 * dockUnit, height: 44 * dockUnit).contains(CGPoint(x: x, y: y))
+      CGRect(x: barLeft + (20 + CGFloat(i) * 72) * dockUnit, y: barTop + 8 * dockUnit, width: 64 * dockUnit, height: 56 * dockUnit).contains(CGPoint(x: x, y: y))
     }
     if index != hoverIndex {
       hoverIndex = index
       UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.12, delay: 0, options: [.beginFromCurrentState, .allowUserInteraction]) {
         for i in 0..<4 {
-          self.icons[i].transform = index == i ? CGAffineTransform(translationX: 0, y: -5 * self.scale * self.dockUnit).scaledBy(x: 1.18, y: 1.18) : .identity
+          self.icons[i].transform = index == i ? CGAffineTransform(translationX: 0, y: -6 * self.scale * self.dockUnit).scaledBy(x: 1.18, y: 1.18) : .identity
           self.labels[i].isHidden = index != i
         }
       }
