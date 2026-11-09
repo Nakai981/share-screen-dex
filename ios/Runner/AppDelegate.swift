@@ -131,6 +131,16 @@ final class ExternalDisplayCoordinator {
       case "refresh":
         self.notifyStatus()
         result(nil)
+      case "openChrome":
+        guard let args = call.arguments as? [String: Any],
+              let value = args["url"] as? String, let url = Self.chromeURL(for: value) else {
+          result(FlutterError(code: "invalid_url", message: "Địa chỉ Chrome không hợp lệ.", details: nil))
+          return
+        }
+        UIApplication.shared.open(url, options: [:]) { opened in
+          if opened { result(nil) }
+          else { result(FlutterError(code: "chrome_unavailable", message: "Chưa cài Google Chrome hoặc không mở được Chrome trên điện thoại.", details: nil)) }
+        }
       case "attachExternalBrowser":
         guard external, let args = call.arguments as? [String: Any],
               let identifier = args["identifier"] as? NSNumber,
@@ -223,6 +233,14 @@ final class ExternalDisplayCoordinator {
       value["height"] = Int(screen.nativeBounds.height)
     }
     return value
+  }
+
+  static func chromeURL(for value: String) -> URL? {
+    guard var components = URLComponents(string: value),
+          let scheme = components.scheme?.lowercased(), ["http", "https"].contains(scheme),
+          let host = components.host, !host.isEmpty else { return nil }
+    components.scheme = scheme == "https" ? "googlechromes" : "googlechrome"
+    return components.url
   }
 
   private func collectBrowserViews() {

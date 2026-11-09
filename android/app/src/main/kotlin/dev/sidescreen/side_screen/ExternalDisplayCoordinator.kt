@@ -3,6 +3,9 @@ package dev.sidescreen.side_screen
 import android.app.Activity
 import android.app.Presentation
 import android.content.Context
+import android.content.Intent
+import android.content.ActivityNotFoundException
+import android.net.Uri
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.hardware.display.DisplayManager
@@ -51,6 +54,25 @@ class ExternalDisplayCoordinator(
 
     private fun handle(call: MethodCall, result: MethodChannel.Result, external: Boolean) {
         when (call.method) {
+            "openChrome" -> {
+                val value = call.argument<String>("url")
+                val uri = value?.let(Uri::parse)
+                if (uri == null || uri.scheme !in listOf("http", "https") || uri.host.isNullOrEmpty()) {
+                    result.error("invalid_url", "Địa chỉ Chrome không hợp lệ.", null)
+                    return
+                }
+                try {
+                    val intent = Intent(Intent.ACTION_VIEW, uri)
+                        .addCategory(Intent.CATEGORY_BROWSABLE)
+                        .setPackage("com.android.chrome")
+                    activity.startActivity(intent)
+                    result.success(null)
+                } catch (_: ActivityNotFoundException) {
+                    result.error("chrome_unavailable", "Chưa cài Google Chrome trên điện thoại.", null)
+                } catch (_: SecurityException) {
+                    result.error("chrome_unavailable", "Hệ thống không cho phép mở Chrome.", null)
+                }
+            }
             "initialize" -> {
                 if (!external) refresh()
                 result.success(mapOf("status" to status(), "state" to state))

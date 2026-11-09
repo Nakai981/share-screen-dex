@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../domain/workspace.dart';
+import '../platform/chrome_launcher.dart';
+import 'chrome_action.dart';
 import 'browser/browser_window.dart';
 import 'desktop.dart';
 import 'keyboard_preferences.dart';
@@ -197,6 +199,8 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
                       switch (value) {
                         case 'address':
                           _address();
+                        case 'chrome':
+                          openChromeFromPhone(context, workspace);
                         case 'minimize':
                           _windowAction('minimize');
                         case 'maximize':
@@ -213,6 +217,11 @@ class _HardwareControllerPageState extends State<HardwareControllerPage> {
                       const PopupMenuItem(
                         value: 'address',
                         child: Text('Nhập địa chỉ website'),
+                      ),
+                      PopupMenuItem(
+                        value: 'chrome',
+                        enabled: ChromeLauncher.supported,
+                        child: const Text('Mở Chrome trên điện thoại'),
                       ),
                       const PopupMenuItem(
                         value: 'exitFullscreen',

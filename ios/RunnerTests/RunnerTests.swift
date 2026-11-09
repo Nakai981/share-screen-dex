@@ -6,6 +6,16 @@ import XCTest
 
 class RunnerTests: XCTestCase {
 
+  func testChromeURLConversionPreservesWebAddressAndBlocksOtherSchemes() {
+    XCTAssertEqual(ExternalDisplayCoordinator.chromeURL(for: "https://www.google.com/search?q=flutter%20desktop#top")?.absoluteString,
+                   "googlechromes://www.google.com/search?q=flutter%20desktop#top")
+    XCTAssertEqual(ExternalDisplayCoordinator.chromeURL(for: "http://example.com/path")?.absoluteString,
+                   "googlechrome://example.com/path")
+    for value in ["javascript:alert(1)", "file:///tmp/index.html", "https:///", "sidescreen://demo", ""] {
+      XCTAssertNil(ExternalDisplayCoordinator.chromeURL(for: value))
+    }
+  }
+
   func testExternalBrowserUsesFullMonitorPointsInsteadOfPhonePixelRatio() async {
     await MainActor.run {
       for size in [CGSize(width: 1280, height: 720), CGSize(width: 1920, height: 1080), CGSize(width: 2560, height: 1600), CGSize(width: 3840, height: 2160)] {

@@ -8,6 +8,7 @@ import '../theme.dart';
 import 'browser_surface.dart';
 import 'browser_web_navigation.dart';
 import '../keyboard_preferences.dart';
+import '../chrome_action.dart';
 
 class BrowserWindow extends StatelessWidget {
   const BrowserWindow({
@@ -705,6 +706,8 @@ class BrowserRemoteControls extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         BrowserAddressField(workspace: workspace, id: 'phone'),
+        const SizedBox(height: 10),
+        ChromePhoneAction(workspace: workspace),
         if (workspace.browserError != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
